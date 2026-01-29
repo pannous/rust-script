@@ -55,7 +55,7 @@ fn test_not_with_different_integer_types() {
 
 #[test]
 fn test_not_with_option_values() {
-	let some_zero: Option<i32> = Some(0);
+	let some_zero: int? = Some(0);
 	assert!(some_zero.is_some()); // Some is always truthy
 
 	let some_empty_str: Option<&str> = Some("");

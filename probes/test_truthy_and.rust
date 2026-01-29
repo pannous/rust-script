@@ -76,7 +76,7 @@ fn test_false_is_falsy() {
 
 #[test]
 fn test_none_option_is_falsy() {
-    let nil_opt: Option<i32> = None;
+    let nil_opt: int? = None;
     if nil_opt {
         assert!(false, "None should be falsy")
     }

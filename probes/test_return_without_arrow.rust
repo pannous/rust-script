@@ -24,7 +24,7 @@ def identity<T>(x: T) T {
 }
 
 # Option return type
-def maybe(b: bool) Option<i32> {
+def maybe(b: bool) int? {
 	if b { Some(42) } else { None }
 }
 

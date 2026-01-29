@@ -9,6 +9,7 @@ import fn doubled(x: i64) -> i64;
 fn test_library_import_magic() {
     let result = unsafe { foo42() };
     eq!(result, 42);
+    x:= None;
 
     let result2 = unsafe { doubled(21) };
     eq!(result2, 42);

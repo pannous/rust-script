@@ -73,7 +73,7 @@ fn test_option_or_workaround() {
     eq!(result, Some(42));
 
     // First None is falsy, return second
-    let opt_none: Option<i32> = None;
+    let opt_none: int? = None;
     let result2 = if opt_none { opt_none } else { Some(99) };
     eq!(result2, Some(99));
 

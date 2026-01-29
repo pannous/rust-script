@@ -19,7 +19,7 @@ fn test_unwrap_shorthand_with_string() {
 
 #[test]
 fn test_chained_unwrap_shorthand() {
-    let nested: Option<Option<i32>> = Some(Some(99));
+    let nested: Option<int?> = Some(Some(99));
     let result = nested.!.!;
     assert_eq!(result, 99);
     put!("✓ Chained .! works");

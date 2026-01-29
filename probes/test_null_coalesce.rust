@@ -2,42 +2,42 @@
 
 #[test]
 fn test_null_coalesce_with_some() {
-	let some_val: Option<i32> = Some(42);
+	let some_val: int? = Some(42);
 	let result = some_val.unwrap_or(0);
 	assert_eq!(result, 42);
 }
 
 #[test]
 fn test_null_coalesce_with_none() {
-	let none_val: Option<i32> = None;
+	let none_val: int? = None;
 	let result = none_val.unwrap_or(99);
 	assert_eq!(result, 99);
 }
 
 #[test]
 fn test_chained_null_coalesce() {
-	let a: Option<i32> = None;
-	let b: Option<i32> = None;
-	let c: Option<i32> = Some(100);
+	let a: int? = None;
+	let b: int? = None;
+	let c: int? = Some(100);
 	let result = a.or(b).or(c).unwrap_or(0);
 	assert_eq!(result, 100);
 }
 
 #[test]
 fn test_chained_null_coalesce_all_none() {
-	let a: Option<i32> = None;
-	let b: Option<i32> = None;
+	let a: int? = None;
+	let b: int? = None;
 	let result = a.or(b).unwrap_or(55);
 	assert_eq!(result, 55);
 }
 
 #[test]
 fn test_null_coalesce_double_try() {
-	fn returns_result() -> Result<Result<i32, ()>, ()> {
+	fn returns_result() -> Result<Result<int, ()>, ()> {
 		Ok(Ok(10))
 	}
 
-	fn test_double_try() -> Result<i32, ()> {
+	fn test_double_try() -> Result<int, ()> {
 		let val = returns_result()??;
 		Ok(val)
 	}
@@ -47,11 +47,11 @@ fn test_null_coalesce_double_try() {
 
 #[test]
 fn test_null_coalesce_combined() {
-	fn get_option() -> Result<Option<i32>, ()> {
+	fn get_option() -> Result<int?, ()> {
 		Ok(None)
 	}
 
-	fn combined() -> Result<i32, ()> {
+	fn combined() -> Result<int, ()> {
 		let val = get_option()?.unwrap_or(999);
 		Ok(val)
 	}
@@ -61,32 +61,32 @@ fn test_null_coalesce_combined() {
 
 #[test]
 fn test_null_coalesce_nested_optionals() {
-	let nested: Option<Option<i32>> = Some(None);
+	let nested: Option<int?> = Some(None);
 	let inner = nested.flatten().unwrap_or(77);
 	assert_eq!(inner, 77);
 
-	let nested_some: Option<Option<i32>> = Some(Some(88));
+	let nested_some: Option<int?> = Some(Some(88));
 	let inner_val = nested_some.flatten().unwrap_or(77);
 	assert_eq!(inner_val, 88);
 }
 
 #[test]
 fn test_null_coalesce_zero_default() {
-	let none_val: Option<i32> = None;
+	let none_val: int? = None;
 	let zero_default = none_val.unwrap_or(0);
 	assert_eq!(zero_default, 0);
 }
 
 #[test]
 fn test_null_coalesce_negative_default() {
-	let none_val: Option<i32> = None;
+	let none_val: int? = None;
 	let neg_default = none_val.unwrap_or(-1);
 	assert_eq!(neg_default, -1);
 }
 
 #[test]
 fn test_null_coalesce_complex_expression() {
-	let none_val: Option<i32> = None;
+	let none_val: int? = None;
 	let computation = none_val.unwrap_or(10 + 20 * 2);
 	assert_eq!(computation, 50);
 }
@@ -104,9 +104,9 @@ fn test_null_coalesce_string() {
 
 #[test]
 fn test_null_coalesce_multiple_none_chain() {
-	let n1: Option<i32> = None;
-	let n2: Option<i32> = None;
-	let n3: Option<i32> = None;
+	let n1: int? = None;
+	let n2: int? = None;
+	let n3: int? = None;
 	let result = n1.or(n2).or(n3).unwrap_or(111);
 	assert_eq!(result, 111);
 }
@@ -119,7 +119,7 @@ fn test_null_coalesce_first_some_in_chain() {
 
 #[test]
 fn test_null_coalesce_second_some_in_chain() {
-	let second_some = (None::<i32>).or(Some(15)).unwrap_or(30);
+	let second_some = (None::<int>).or(Some(15)).unwrap_or(30);
 	assert_eq!(second_some, 15);
 }
 

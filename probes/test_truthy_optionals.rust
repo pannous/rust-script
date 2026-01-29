@@ -88,9 +88,9 @@ fn test_optional_string_truthy() {
 
 #[test]
 fn test_nested_optionals() {
-    let nested_some: Option<Option<i32>> = Some(Some(42));
-    let nested_none_inner: Option<Option<i32>> = Some(None);
-    let nested_none_outer: Option<Option<i32>> = None;
+    let nested_some: Option<int?> = Some(Some(42));
+    let nested_none_inner: Option<int?> = Some(None);
+    let nested_none_outer: Option<int?> = None;
 
     if nested_some {
         put!("✓ Some(Some(42)) is truthy");

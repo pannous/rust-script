@@ -108,6 +108,10 @@ flake.lock
 
 *.orig
 # Before adding new lines, see the comment at the top.test-results.log
+.orig
+.toml.orig
+*.toml.orig
+**/*.toml.orig
 
 tmp
 

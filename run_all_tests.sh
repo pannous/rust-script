@@ -131,11 +131,14 @@ compile_test() {
         local test_output
         test_output=$("$RUSTC" --test "$file" -o "$output_bin" -L "$SCRIPT_DIR" -A unused 2>&1) || { echo "$test_output"; return 1; }
 
+# Fix me to do this should be decided by RustC and not here !!!
         # Then compile as dylib and output to probes directory for other tests to use
         "$RUSTC" "$file" --crate-type dylib -o "$SCRIPT_DIR/lib$name.dylib" -A unused 2>&1
     else
         # Regular test - add library search path in case it uses libraries
-        "$RUSTC" --test "$file" -o "$output_bin" -L "$SCRIPT_DIR" -A unused 2>&1
+        echo "$RUSTC" --test "$file" -o "$output_bin" -L "$SCRIPT_DIR" -A unused
+        # "$RUSTC" --test "$file" -o "$output_bin" -L "$SCRIPT_DIR" -A unused 2>&1
+        "$RUSTC"  "$file"  2>&1
     fi
 }
 

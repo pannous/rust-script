@@ -4,12 +4,13 @@
 
 // Array accessor methods (head, tail, first, last, etc.)
 // Implemented specifically for arrays/slices to avoid conflict with StringExtensions
-// use crate::numbers::rand_index;
 
 // Only import rand for standalone extension builds (when used as a separate crate)
 // When injected into scripts, random functions use simple fallbacks without rand
 // NOTE: This use statement is filtered out during script injection by filter_out_standalone_cfg
-#[cfg(feature = "standalone_extension")] use rand::RngExt;
+// #[cfg(feature = "standalone_extension")] use rand::RngExt;
+
+use rand::RngExt;
 
 #[allow(dead_code)]
 pub trait ArrayExtensions<T: Clone> {
@@ -188,7 +189,11 @@ impl<T: Clone, S: AsRef<[T]>> ListExtensions<T> for S {
 	fn random(&self) -> Option<T> {
 		let slice = self.as_ref();
 		if slice.is_empty() { return None }
-		let idx = rand::rng().random_range(0..slice.len());
+		static mut STATE: u64 = 0x1234_5678_9ABC_DEF0;
+		let idx: usize = unsafe {
+			STATE = STATE.wrapping_mul(6364136223846793005).wrapping_add(1);
+			(STATE >> 32) as usize
+		};
 		slice.get(idx).cloned()
 	}
 
@@ -207,9 +212,12 @@ impl<T: Clone, S: AsRef<[T]>> ListExtensions<T> for S {
 		// Fisher-Yates shuffle
 		let mut n = v.len();
 		while n > 1 {
-			let j = rand::rng().random_range(0..len(self));
-			n -= 1;
-			v.swap(n, j);
+			static mut STATE: u64 = 0x1234_5678_9ABC_DEF0;
+			let j: usize = unsafe {
+				STATE = STATE.wrapping_mul(6364136223846793005).wrapping_add(1);
+				(STATE >> 32) as usize
+			};
+			v.swap(n, j % len(self));
 		}
 		v
 	}

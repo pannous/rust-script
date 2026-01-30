@@ -46,6 +46,7 @@ pub fn parse_extensions(
     let external_crates = extract_external_crates(&combined_source);
 
     let source_without_macros = filter_out_macros(&combined_source);
+    let source_without_cfg = filter_out_standalone_cfg(&source_without_macros);
 
     let filename = FileName::Custom("script_extensions".into());
 
@@ -54,7 +55,7 @@ pub fn parse_extensions(
     let stream = match source_str_to_stream(
         psess,
         filename,
-        source_without_macros.to_string(),
+        source_without_cfg.to_string(),
         Some(call_site),  // Override all spans to call_site for visibility
     ) {
         Ok(stream) => stream,
@@ -99,11 +100,25 @@ pub fn parse_extensions(
 fn extract_external_crates(source: &str) -> Vec<&str> {
     let mut crates = Vec::new();
     let stdlib_crates = ["std", "core", "alloc"];
+    let mut skip_next_line = false;
 
     for line in source.lines() {
         let trimmed = line.trim();
+
+        // Check if this line has a cfg attribute that would exclude it
+        if trimmed.starts_with("#[cfg(feature = \"standalone_extension\")]") {
+            skip_next_line = true;
+            continue;
+        }
+
         // Match: use crate_name::...;
         if trimmed.starts_with("use ") {
+            // Skip this use statement if it's cfg-guarded
+            if skip_next_line {
+                skip_next_line = false;
+                continue;
+            }
+
             if let Some(rest) = trimmed.strip_prefix("use ") {
                 // Extract the crate name (first segment before ::)
                 if let Some(crate_part) = rest.split("::").next() {
@@ -119,6 +134,8 @@ fn extract_external_crates(source: &str) -> Vec<&str> {
                     }
                 }
             }
+        } else {
+            skip_next_line = false;
         }
     }
 
@@ -143,6 +160,62 @@ fn create_extern_crate_item(crate_name: &str, span: Span) -> Box<ast::Item> {
         span,
         tokens: None,
     })
+}
+
+/// Filter out code guarded by #[cfg(feature = "standalone_extension")].
+/// This code is only for standalone usage and not needed in injected scripts.
+fn filter_out_standalone_cfg(source: &str) -> String {
+    let mut result = String::new();
+    let mut lines = source.lines();
+    let mut skip_next = false;
+    let mut in_cfg_block = false;
+    let mut brace_depth = 0;
+    let mut initial_depth = 0;
+
+    while let Some(line) = lines.next() {
+        let trimmed = line.trim();
+
+        // Check for standalone_extension cfg attribute (on its own line or inline)
+        if trimmed.contains("#[cfg(feature = \"standalone_extension\")]") {
+            // If the cfg is inline with code (e.g., #[cfg(...)] use rand::...), skip entire line
+            if trimmed.starts_with("#[cfg(feature = \"standalone_extension\")]") && trimmed.len() > "#[cfg(feature = \"standalone_extension\")]".len() {
+                // Inline cfg - skip this entire line
+                continue;
+            } else {
+                // Cfg on its own line - skip next line too
+                skip_next = true;
+                continue;
+            }
+        }
+
+        if skip_next {
+            // Check if this is a function/block that should be skipped
+            if trimmed.starts_with("fn ") || trimmed.starts_with("use ") {
+                if trimmed.contains("{") {
+                    in_cfg_block = true;
+                    initial_depth = 0;
+                    brace_depth = trimmed.matches('{').count() as i32 - trimmed.matches('}').count() as i32;
+                }
+                skip_next = false;
+                continue;
+            }
+        }
+
+        if in_cfg_block {
+            brace_depth += trimmed.matches('{').count() as i32;
+            brace_depth -= trimmed.matches('}').count() as i32;
+
+            if brace_depth <= initial_depth {
+                in_cfg_block = false;
+            }
+            continue;
+        }
+
+        result.push_str(line);
+        result.push('\n');
+    }
+
+    result
 }
 
 /// Filter out macro definitions from source code.

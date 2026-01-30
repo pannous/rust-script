@@ -1,0 +1,995 @@
+# Claude Conversation (423621e7)
+
+## 👤 Human
+
+error: struct literal body without path
+ --> /opt/other/rust/probes/test_class.rust:7:12
+  |
+7 | untyped := {name: "Alice", age: 30}
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^
+
+Let's hook into that code path to create maps on the fly!
+
+---
+
+## 🤖 Assistant
+
+I'll help you hook into that error path to create maps on the fly. Let me first get a baseline and find where this error is generated.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./run_all_tests.sh 2>&1 | tee test-results.log | grep Results`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `struct literal body without path`
+
+---
+
+## 🤖 Assistant
+
+Found it. Let me look at where this error is emitted and how the `@{...}` map literal is currently implemented.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `StructLiteralBodyWithoutPath`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/probes/test_class.rust`
+
+---
+
+## 🤖 Assistant
+
+Let me look at the diagnostics code and find how `@{...}` map literals work.
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `@\{|map.*literal|MapLiteral|magic.*map`
+
+---
+
+## 🤖 Assistant
+
+Let me search for how `@{` map literals are implemented in expr.rs.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `magic.*map|parse.*map|At.*Brace|@\{`
+
+---
+
+## 🤖 Assistant
+
+Let me look at the `parse_expr_at_map` function to understand how map literals work.
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/expr.rs`
+
+---
+
+## 🤖 Assistant
+
+Now I understand the pattern. Let me look more at the diagnostics code to understand exactly where to hook in and create a map literal instead of emitting the error.
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+Let me understand the `ExprKind::Struct` structure to extract fields from it.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `ExprKind::Struct`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `Struct\(.*StructExpr|enum ExprKind`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `struct StructExpr|pub struct StructExpr`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `struct ExprField|pub struct ExprField`
+
+---
+
+## 🤖 Assistant
+
+Let me see where `maybe_suggest_struct_literal` is called to understand the context better.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `maybe_suggest_struct_literal`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/stmt.rs`
+
+---
+
+## 🤖 Assistant
+
+Now I understand the flow. I need to modify `maybe_suggest_struct_literal` to convert the struct literal to a HashMap instead of emitting an error. Let me make the change.
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+Let me check what imports are needed and look at how string literals are created.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `mk_expr.*Lit|token::Lit|LitKind::Str`
+
+---
+
+## 🤖 Assistant
+
+Now I'll modify the `maybe_suggest_struct_literal` function to create a HashMap instead of emitting an error.
+
+---
+
+## 🤖 Assistant
+
+→ `Edit`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+Now I need to add `token` to the imports. Let me check and update them.
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+Good, the imports are already in place. Let me rebuild and test.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./rebuild.sh 2>&1 | tail -50`
+
+---
+
+## 🤖 Assistant
+
+Build succeeded. Let me test with the specific test file.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./build/host/stage1/bin/rustc probes/test_class.rust 2>&1`
+
+---
+
+## 🤖 Assistant
+
+The parser change is working - no more "struct literal body without path" error. But we need:
+1. Full path `std::collections::HashMap` 
+2. The value type needs to be homogeneous or we need to use their Val type for heterogeneous maps
+
+Let me check how they handle magic lists with mixed types.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `Val\(|magic.*list|wrap.*Val|detect_mixed`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/expr.rs`
+
+---
+
+## 🤖 Assistant
+
+Let me see how they build Val-wrapped tokens for mixed types.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `build_val_wrapped|Val::from`
+
+---
+
+## 🤖 Assistant
+
+I need to update the code to use the full path and wrap values in `Val::from(...)`. Let me update the diagnostics.rs.
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Edit`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+Wait, I need to check if `std` and `collections` are proper symbols. Let me verify.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `sym::std|sym::collections`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `^\s*std,|^\s*collections,`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `collections`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `PathSegment.*global|global.*path|absolute.*path`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `PathRoot`
+
+---
+
+## 🤖 Assistant
+
+Let me fix the path to use `kw::PathRoot` for a global path. I also need to intern the `collections` symbol.
+
+---
+
+## 🤖 Assistant
+
+→ `Edit`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+The file seems to have been reset. Let me re-apply the full edit.
+
+---
+
+## 🤖 Assistant
+
+→ `Edit`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+Good, the changes are there. Now I need to fix `kw::Crate` to `kw::PathRoot` and `sym::collections` to `Symbol::intern("collections")`.
+
+---
+
+## 🤖 Assistant
+
+→ `Edit`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+Now I need to make sure `Symbol` is imported. Let me check and add the import if needed.
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+Good, `Symbol` is already imported. Let me rebuild and test.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./rebuild.sh 2>&1 | tail -30`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./build/host/stage1/bin/rustc probes/test_class.rust 2>&1`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/probes/test_class.rust`
+
+---
+
+## 🤖 Assistant
+
+The test file has formatting issues. Let me check the original/working format.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `git diff probes/test_class.rust`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `git status probes/test_class.rust && git show HEAD:probes/test_class.rust`
+
+---
+
+## 🤖 Assistant
+
+Let me test with a simpler file to isolate the issue.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `echo 'x := {name: "Alice", age: 30}
+put!(x)' | ./build/host/stage1/bin/rustc - 2>&1 | head -30`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `cat > /tmp/test_map.rust << 'EOF'
+#!/usr/bin/env rust
+x := {name: "Alice", age: 30}
+put!(x)
+EOF
+./bu...`
+
+---
+
+## 🤖 Assistant
+
+The error is still showing - my change only applies to block parsing context, not expression context. Let me find where the error is handled for expressions.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `struct literal body without path|StructLiteralBodyWithoutPath`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `parse_expr_struct|struct.*literal.*path`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/expr.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `parse_expr_block|parse_block_expr|OpenBrace`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/expr.rs`
+
+---
+
+## 🤖 Assistant
+
+Let me check if there's a caching issue with the build.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./rebuild.sh 2>&1 | grep -E "(Compiling rustc_parse|error)"`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./build/host/stage1/bin/rustc /tmp/test_map.rust 2>&1 | head -20`
+
+---
+
+## 🤖 Assistant
+
+Let me verify my changes are actually in the file.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `untyped map literal|collections::HashMap|Val::from`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `git status compiler/rustc_parse/src/parser/diagnostics.rs && git diff compiler/rustc_parse/src/parse...`
+
+---
+
+## 🤖 Assistant
+
+My changes were lost. Let me re-apply them.
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Edit`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./rebuild.sh 2>&1 | tail -20`
+
+---
+
+## 🤖 Assistant
+
+I need to add `collections` to the symbol definitions. Let me find the right place.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `^\s+call,|^\s+clone,|^\s+core,`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_span/src/symbol.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Edit`: `/opt/other/rust/compiler/rustc_span/src/symbol.rs`
+
+---
+
+## 🤖 Assistant
+
+Now let me update the code to use `sym::collections`.
+
+---
+
+## 🤖 Assistant
+
+→ `Edit`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Edit`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./rebuild.sh 2>&1 | tail -20`
+
+---
+
+## 🤖 Assistant
+
+→ `TaskOutput`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./build/host/stage1/bin/rustc /tmp/test_map.rust 2>&1`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `Untyped map literal|collections::HashMap`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `git diff compiler/rustc_parse/src/parser/diagnostics.rs | head -100`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `ls -la .git/hooks/ 2>/dev/null | head -10; cat .git/hooks/pre-commit 2>/dev/null | head -20`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/rebuild.sh`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `grep -n "Untyped map literal" /opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs 2>/dev/...`
+
+---
+
+## 🤖 Assistant
+
+Let me verify the file and apply the changes more carefully.
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `cat > /tmp/patch.txt << 'ENDPATCH'
+--- a/compiler/rustc_parse/src/parser/diagnostics.rs
++++ b/compil...`
+
+---
+
+## 🤖 Assistant
+
+Let me try a Python approach to edit the file.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `python3 << 'ENDSCRIPT'
+import re
+
+# Read the file
+with open('/opt/other/rust/compiler/rustc_parse/sr...`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `grep -n "Untyped map literal" /opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+Now let me rebuild and test.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./rebuild.sh 2>&1 | tail -25`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `grep -n "collections," /opt/other/rust/compiler/rustc_span/src/symbol.rs | head -5`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `python3 << 'ENDSCRIPT'
+# Read the file
+with open('/opt/other/rust/compiler/rustc_span/src/symbol.rs'...`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./rebuild.sh 2>&1 | tail -20`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./build/host/stage1/bin/rustc /tmp/test_map.rust 2>&1`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `ls -la ./build/host/stage1/bin/ 2>/dev/null || echo "Directory not found"; ./rebuild.sh 2>&1 | tail ...`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./build/host/stage1/bin/rustc /tmp/test_map.rust 2>&1`
+
+---
+
+## 🤖 Assistant
+
+Let me trace through the parsing more carefully. The issue might be that the expression context is different.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `check.*OpenBrace|parse.*block.*expr`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/expr.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/expr.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `parse_expr_bottom|atom_expr|primary.*expr`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/expr.rs`
+
+---
+
+## 🤖 Assistant
+
+Let me add some debug output to trace what's happening.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `python3 << 'ENDSCRIPT'
+with open('/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs', '...`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./rebuild.sh 2>&1 | tail -15`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./build/host/stage1/bin/rustc /tmp/test_map.rust 2>&1`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `StructLiteralBodyWithoutPath`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `grep -rn "StructLiteralBodyWithoutPath" /opt/other/rust/compiler 2>/dev/null | head -20`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `grep -n "Untyped map literal\|ExprKind::Struct" /opt/other/rust/compiler/rustc_parse/src/parser/diag...`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `git status compiler/rustc_parse/src/parser/diagnostics.rs`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `# First, let me make my changes with Python and verify before building
+python3 << 'ENDSCRIPT'
+import...`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `# Check if collections symbol exists
+grep "collections," /opt/other/rust/compiler/rustc_span/src/sym...`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./build/host/stage1/bin/rustc /tmp/test_map.rust 2>&1`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./x.py build --stage 1 library 2>&1 | tail -15`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./build/host/stage1/bin/rustc /tmp/test_map.rust 2>&1`
+
+---
+
+## 🤖 Assistant
+
+Excellent! It works! The map literal is being converted to a HashMap. Let me run the full test suite.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./run_all_tests.sh 2>&1 | tee test-results.log | grep Results`
+
+---
+
+## 🤖 Assistant
+
+We improved from 84 to 87 passing tests. Let me check for any regressions.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `git diff test-results.log | grep -E "^[\+\-]✓|^[\+\-]✗" | head -30`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./build/host/stage1/bin/rustc probes/test_class.rust 2>&1`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `cat probes/test_class.rust`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `git show HEAD:probes/test_class.rust`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `git status probes/ && cat probes/test_enum.rust`
+
+---
+
+## 🤖 Assistant
+
+Let me create a test file for the map literal feature.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `cat > probes/test_map_literal.rust << 'EOF'
+#!/usr/bin/env rust
+# Test untyped map literals: {key: v...`
+
+---
+
+## 🤖 Assistant
+
+The feature works. Let me run the tests and commit.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `./run_all_tests.sh 2>&1 | tee test-results.log | grep Results`
+
+---
+
+## 🤖 Assistant
+
+88 tests passing now (up from 84). Let me commit the changes.
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `git status && git diff --stat`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `git add compiler/rustc_parse/src/parser/diagnostics.rs compiler/rustc_span/src/symbol.rs probes/test...`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `git log --oneline -5 && git diff --cached compiler/rustc_parse/src/parser/diagnostics.rs | head -80`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `git commit -m "$(cat <<'EOF'
+feature(minor): Add untyped map literal syntax {key: value}
+
+Convert ba...`
+
+---
+
+## 🤖 Assistant
+
+→ `Bash`: `git push`
+
+---
+
+## 🤖 Assistant
+
+Done! I've implemented untyped map literal syntax `{key: value}` by hooking into the "struct literal body without path" error handler.
+
+**Changes made:**
+1. **`compiler/rustc_parse/src/parser/diagnostics.rs`**: Modified `maybe_suggest_struct_literal` to convert bare struct literals to HashMap calls:
+   - `{name: "Alice", age: 30}` → `::std::collections::HashMap::from([("name", Val::from("Alice")), ("age", Val::from(30))])`
+   - Keys become string literals from the field identifiers
+   - Values are wrapped in `Val::from(...)` to support heterogeneous types
+
+2. **`compiler/rustc_span/src/symbol.rs`**: Added `collections` symbol
+
+3. **`probes/test_map_literal.rust`**: Added test file for the new feature
+
+**Test results:** 88 tests passing (up from 84)
+
+The syntax now allows JavaScript/Go-style map literals:
+```rust
+person := {name: "Alice", age: 30}  // HashMap<&str, Val>
+coords := {x: 10, y: 20, z: 30}     // HashMap<&str, Val>
+```
+
+---
+
+## 👤 Human
+
+<task-notification>
+<task-id>bcc235a</task-id>
+<output-file>/private/tmp/claude/-opt-other-rust/tasks/bcc235a.output</output-file>
+<status>completed</status>
+<summary>Background command "./rebuild.sh 2>&1 | tail -20" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude/-opt-other-rust/tasks/bcc235a.output
+
+---
+
+## 🤖 Assistant
+
+The background rebuild task completed successfully. The feature is already committed and pushed. The untyped map literal syntax `{key: value}` is now working in your custom Rust fork.
+
+---
+

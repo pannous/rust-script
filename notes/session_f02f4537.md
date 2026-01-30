@@ -1,0 +1,149 @@
+# Claude Conversation (f02f4537)
+
+## 👤 Human
+
+sh -c "\"/opt/other/rust/build/aarch64-apple-darwin/stage1/bin/rustc\" \"/opt/other/rust/probes/test_truthy_and_complex.rs\" -o \"/opt/other/rust/probes/test_truthy_and_complex\" && \"/opt/other/rust/probes/test_truthy_and_complex\""
+error[E0716]: temporary value dropped while borrowed
+  --> /opt/other/rust/probes/test_truthy_and_complex.rs:9:12
+   |
+ 9 | let user = users.chose(|u| u.Age > 18).first()
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^       - temporary value is freed at the end of this statement
+
+Can this be fixed without breaking other tests
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/probes/test_truthy_and_complex.rs`
+
+---
+
+## 🤖 Assistant
+
+The issue is that `chose()` returns a temporary `Vec`, and `.first()` returns a reference into it. The temporary is dropped immediately, leaving a dangling reference.
+
+Let me check how `chose` is implemented.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `fn chose`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `chose`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `chose`
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `chose`
+
+---
+
+## 🤖 Assistant
+
+Let me look at related tests to understand the pattern:
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/probes/test_filter_synonyms.rs`
+
+---
+
+## 🤖 Assistant
+
+The issue is that `.chose()` returns an owned `Vec<T>`, and `.first()` returns a reference into that temporary. The temporary is dropped at the end of the statement.
+
+The simplest fix is to bind the intermediate result:
+
+---
+
+## 🤖 Assistant
+
+→ `Edit`: `/opt/other/rust/probes/test_truthy_and_complex.rs`
+
+---
+
+## 👤 Human
+
+[Request interrupted by user for tool use]
+
+---
+
+## 👤 Human
+
+That's insane that's basically the same thing do you think there's any way that we can make our rust figure that out?
+
+---
+
+## 🤖 Assistant
+
+You're right - in a scripting context, that chaining should just work. We could add a `first_cloned()` method (or make `first()` return an owned value in script mode) that clones the element instead of returning a reference.
+
+Let me look at how to add this:
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/opt/other/rust/compiler/rustc_parse/src/transformer/slice.rs`
+
+---
+
+## 🤖 Assistant
+
+Good idea! We can add a `first_cloned()` method (or similar) that returns an owned `Option<T>` instead of `Option<&T>`. This way chaining works naturally.
+
+Let me explore the symbols and plan this properly.
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `first_cloned|head\b`
+
+---
+
+## 🤖 Assistant
+
+`head` symbol exists. Let me check what symbols are available and look at how existing slice helpers are used:
+
+---
+
+## 🤖 Assistant
+
+→ `Grep`: `(first|last|head|tail)`
+
+---
+
+## 🤖 Assistant
+
+Now I have enough context. Let me write the plan:
+
+---
+
+## 🤖 Assistant
+
+→ `Write`: `/Users/me/.claude/plans/snug-swinging-bubble.md`
+
+---
+
+## 🤖 Assistant
+
+→ `ExitPlanMode`
+
+---
+

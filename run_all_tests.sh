@@ -14,7 +14,7 @@
 set -e
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT_DIR="$PROJECT_DIR/probes"
+SCRIPT_DIR="$PROJECT_DIR/probes/tests"
 RUSTC="$PROJECT_DIR/rustc"
 TEMP_DIR="/tmp/probe_tests"
 

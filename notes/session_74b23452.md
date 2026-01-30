@@ -1,0 +1,91 @@
+# Claude Conversation (74b23452)
+
+## 👤 Human
+
+If you read @README.md You see all the features that we have implemented. Most of them are currently gated behind the scripting harness, Let us find out which of these features are compatible with the whole codebase. First, we do self-host-build.sh Which should be easy, because all features are disabled. Then we should enable them one-by-one and see if we can still build the whole host.
+
+---
+
+## 🤖 Assistant
+
+I'll explore the codebase to understand the current feature gating mechanism and the self-host build process.
+
+---
+
+## 🤖 Assistant
+
+→ `Task` (Explore)
+
+---
+
+## 🤖 Assistant
+
+→ `Task` (Explore)
+
+---
+
+## 🤖 Assistant
+
+→ `Task` (Explore)
+
+---
+
+## 🤖 Assistant
+
+Now I have a comprehensive understanding. Let me create the plan file.
+
+---
+
+## 🤖 Assistant
+
+→ `Write`: `/Users/me/.claude/plans/fizzy-tinkering-truffle.md`
+
+---
+
+## 🤖 Assistant
+
+→ `AskUserQuestion`
+
+---
+
+## 🤖 Assistant
+
+I misunderstood the direction - you want to **move features OUT of script mode** into global mode. Let me update the plan.
+
+---
+
+## 🤖 Assistant
+
+→ `Edit`: `/Users/me/.claude/plans/fizzy-tinkering-truffle.md`
+
+---
+
+## 🤖 Assistant
+
+→ `Edit`: `/Users/me/.claude/plans/fizzy-tinkering-truffle.md`
+
+---
+
+## 🤖 Assistant
+
+→ `Read`: `/Users/me/.claude/plans/fizzy-tinkering-truffle.md`
+
+---
+
+## 🤖 Assistant
+
+The plan is ready. It covers:
+
+1. **Baseline verification** - confirm current self-host works
+2. **Parser-level features** (`var`, `def`, `class`, Go-style returns) - easy to un-gate by removing `is_script_mode()` checks
+3. **Harness-injected features** (type aliases, `put!`, Truthy/Val) - more complex, TBD based on Phase 2 results
+4. **Verification** after each migration
+
+---
+
+## 🤖 Assistant
+
+→ `ExitPlanMode`
+
+---
+

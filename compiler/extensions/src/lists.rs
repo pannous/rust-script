@@ -192,19 +192,11 @@ impl<T: Clone, S: AsRef<[T]>> ListExtensions<T> for S {
 		slice.get(idx).cloned()
 	}
 
-	fn random(&self) -> Option<T> {
-		// Placeholder: Use a simple index-based selection without rand
-		let slice = self.as_ref();
-		if slice.is_empty() { return None }
-		// Just return first element when rand is not available
-		slice.first().cloned()
-	}
-
 //	#[cfg(feature = "standalone_extension")]
 	fn shuffle(&self) -> Vec<T> {
 		let mut v = self.as_ref().to_vec();
 		// Fisher-Yates shuffle
-		let mut n = v.len();
+		let n = v.len();
 		while n > 1 {
 			static mut STATE: u64 = 0x1234_5678_9ABC_DEF0;
 			let j: usize = unsafe {
@@ -214,11 +206,6 @@ impl<T: Clone, S: AsRef<[T]>> ListExtensions<T> for S {
 			v.swap(n, j % len(self));
 		}
 		v
-	}
-
-	fn shuffle(&self) -> Vec<T> {
-		// Placeholder: Return copy without shuffling when rand is not available
-		self.as_ref().to_vec()
 	}
 }
 

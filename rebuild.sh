@@ -5,6 +5,9 @@
 # cp ./build/host/stage1/bin/rustc rustc # current dyld[123]: Library not loaded: doesn't help
 # cp ./build/host/stage1/bin/rustc /usr/local/bin/rust
 # ln -s /opt/other/rust/build/host/stage1/bin/rustc /usr/local/bin/rust
+cd /opt/other/rust/compiler/extensions/; cargo build --features standalone_extension
+cd -
+
 if [[ "$*" == *"cache"* ]]; then
     export CARGO_INCREMENTAL=""
     env -u RUSTC_WRAPPER ./x.py build --stage 1
@@ -12,38 +15,6 @@ else
 	echo "use ./rebuild.sh cache   for sccache instead of INCREMENTAL build!"
     ./x.py build --stage 1 compiler
     ./x.py build --stage 1 library
-fi
-
-# Build external dependencies for script mode extensions
-echo "Building external dependencies for script mode..."
-SCRIPT_DEPS_DIR="./build/script-deps"
-mkdir -p "$SCRIPT_DEPS_DIR"
-
-# Only rebuild if Cargo.toml doesn't exist or dependencies changed
-if [ ! -f "$SCRIPT_DEPS_DIR/Cargo.toml" ]; then
-    cat > "$SCRIPT_DEPS_DIR/Cargo.toml" << 'EOF'
-[package]
-name = "script-deps"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-# Add external crates needed by extensions here
-rand = "0.10.0-rc.8"
-# Example: Add more dependencies as needed
-# serde = { version = "1.0", features = ["derive"] }
-# regex = "1.10"
-EOF
-
-    mkdir -p "$SCRIPT_DEPS_DIR/src"
-
-    cat > "$SCRIPT_DEPS_DIR/src/lib.rs" << 'EOF'
-// Dummy library to build dependencies
-// Add new dependencies as needed
-pub use rand;
-// pub use serde;
-// pub use regex;
-EOF
 fi
 
 # Build with the stage1 rustc for version compatibility

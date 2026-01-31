@@ -1,4 +1,5 @@
 // Math constants and numeric utilities for script mode.
+// #[allow(mixed_script_confusables)] can't do on crate level because parser.rs injection
 
 use std::cell::Cell;
 

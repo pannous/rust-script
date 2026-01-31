@@ -75,13 +75,7 @@ fn inject_helpers(krate: &mut ast::Crate, sess: &Session, def_site: Span, call_s
 
     // Parse extension library code with call_site visibility
     // This replaces the programmatic AST generation for traits, impls, and functions
-    // Skip extension injection when compiling tests (--test flag) as tests
-    // use cargo which provides dependencies properly
-    let parsed_extensions = if !sess.opts.test {
-        transformer::parse_extensions(&sess.psess, call_site)
-    } else {
-        ThinVec::new()
-    };
+    let parsed_extensions = transformer::parse_extensions(&sess.psess, call_site);
 
     // Partition items and optionally build main
     let (module_items, main_stmts) = partition_items(&krate.items);

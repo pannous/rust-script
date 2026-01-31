@@ -181,7 +181,6 @@ impl<T: Clone, S: AsRef<[T]>> ListExtensions<T> for S {
 	fn sort_desc(&self) -> Vec<T> where T: Ord { self.sortDesc() }
 
 	// Random utilities implementation
-	#[cfg(feature = "standalone_extension")]
 	fn random(&self) -> Option<T> {
 		let slice = self.as_ref();
 		if slice.is_empty() { return None }
@@ -193,7 +192,6 @@ impl<T: Clone, S: AsRef<[T]>> ListExtensions<T> for S {
 		slice.get(idx).cloned()
 	}
 
-	#[cfg(not(feature = "standalone_extension"))]
 	fn random(&self) -> Option<T> {
 		// Placeholder: Use a simple index-based selection without rand
 		let slice = self.as_ref();
@@ -202,7 +200,7 @@ impl<T: Clone, S: AsRef<[T]>> ListExtensions<T> for S {
 		slice.first().cloned()
 	}
 
-	#[cfg(feature = "standalone_extension")]
+//	#[cfg(feature = "standalone_extension")]
 	fn shuffle(&self) -> Vec<T> {
 		let mut v = self.as_ref().to_vec();
 		// Fisher-Yates shuffle
@@ -218,7 +216,6 @@ impl<T: Clone, S: AsRef<[T]>> ListExtensions<T> for S {
 		v
 	}
 
-	#[cfg(not(feature = "standalone_extension"))]
 	fn shuffle(&self) -> Vec<T> {
 		// Placeholder: Return copy without shuffling when rand is not available
 		self.as_ref().to_vec()

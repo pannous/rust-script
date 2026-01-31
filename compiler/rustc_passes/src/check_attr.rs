@@ -291,6 +291,8 @@ impl<'tcx> CheckAttrVisitor<'tcx> {
                     | AttributeKind::RustcConstStabilityIndirect
                     | AttributeKind::RustcDeallocator
                     | AttributeKind::RustcDenyExplicitImpl(..)
+                    | AttributeKind::Dummy
+                    | AttributeKind::DynIncompatibleTrait(..)
                     | AttributeKind::RustcDummy
                     | AttributeKind::RustcDumpDefParents
                     | AttributeKind::RustcDumpItemBounds

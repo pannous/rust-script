@@ -482,7 +482,7 @@ impl<'a> Parser<'a> {
         allow_const_block_items: AllowConstBlockItems,
     ) -> PResult<'a, Option<Box<Item>>> {
         let fn_parse_mode =
-            FnParseMode { req_name: |_, _| true, context: FnContext::Free, req_body: true };
+            FnParseMode { req_name: |_, _| true, context: FnContext::Free, req_body: true, in_block: false };
         self.parse_item_(fn_parse_mode, force_collect, allow_const_block_items)
             .map(|i| i.map(Box::new))
     }

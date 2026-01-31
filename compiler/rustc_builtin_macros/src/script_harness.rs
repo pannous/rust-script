@@ -75,6 +75,9 @@ fn inject_helpers(krate: &mut ast::Crate, sess: &Session, def_site: Span, call_s
 
     // Parse extension library code with call_site visibility
     // This replaces the programmatic AST generation for traits, impls, and functions
+    // IMPORTANT: We ALWAYS inject extensions, even in test mode, because:
+    // - and/or operators require the Truthy trait
+    // - custom syntax features need their runtime support
     let parsed_extensions = transformer::parse_extensions(&sess.psess, call_site);
 
     // Partition items and optionally build main
@@ -345,6 +348,7 @@ fn partition_items(
             | ast::ItemKind::MacroDef(..)
             | ast::ItemKind::Static(_)
             | ast::ItemKind::Const(_)
+            | ast::ItemKind::ConstBlock(_)
             | ast::ItemKind::Delegation(_)
             | ast::ItemKind::DelegationMac(_) => {
                 module_items.push(item.clone());

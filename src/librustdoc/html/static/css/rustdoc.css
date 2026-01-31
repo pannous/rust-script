@@ -210,6 +210,24 @@ body {
 	color: var(--main-color);
 }
 
+/* Skip navigation link for keyboard users (WCAG 2.4.1) */
+.skip-main-content {
+	position: absolute;
+	left: 0;
+	top: -100%;
+	z-index: 1000;
+	padding: 0.5rem 1rem;
+	background-color: var(--main-background-color);
+	color: var(--main-color);
+	text-decoration: none;
+	font-weight: 500;
+	border-bottom-right-radius: 4px;
+	outline: 2px solid var(--search-input-focused-border-color);
+}
+.skip-main-content:focus {
+	top: 0;
+}
+
 h1 {
 	font-size: 1.5rem; /* 24px */
 }
@@ -341,7 +359,8 @@ summary.hideme,
 .rustdoc-breadcrumbs,
 .search-switcher,
 /* This selector is for the items listed in the "all items" page. */
-ul.all-items {
+ul.all-items,
+.deprecated-count {
 	font-family: "Fira Sans", Arial, NanumBarunGothic, sans-serif;
 }
 
@@ -1114,6 +1133,7 @@ pre, .rustdoc.src .example-wrap, .example-wrap .src-line-numbers {
 
 #main-content {
 	position: relative;
+	outline: none;
 }
 
 .docblock table {
@@ -2652,6 +2672,18 @@ However, it's not needed with smaller screen width because the doc/code block is
 	display: none;
 }
 
+.deprecated-count {
+	display: none;
+}
+/*
+The `:not(:empty)` is a little trick to not have to add conditions in JS to hide/show the marker.
+It's entirely based on whether it has content and if the setting is enabled.
+*/
+.hide-deprecated-items .deprecated-count:not(:empty) {
+	display: block;
+	margin: 10px 0;
+}
+
 /*
 WARNING: RUSTDOC_MOBILE_BREAKPOINT MEDIA QUERY
 If you update this line, then you also need to update the line with the same warning
@@ -3267,7 +3299,7 @@ by default.
 	--headings-border-bottom-color: #d2d2d2;
 	--border-color: #e0e0e0;
 	--button-background-color: #f0f0f0;
-	--right-side-color: grey;
+	--right-side-color: #d0d0d0;
 	--code-attribute-color: #999;
 	--toggles-color: #999;
 	--toggle-filter: invert(100%);

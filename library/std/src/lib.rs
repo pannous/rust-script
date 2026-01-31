@@ -309,6 +309,7 @@
 #![feature(staged_api)]
 #![feature(stmt_expr_attributes)]
 #![feature(strict_provenance_lints)]
+#![feature(target_feature_inline_always)]
 #![feature(thread_local)]
 #![feature(try_blocks)]
 #![feature(try_trait_v2)]
@@ -468,7 +469,9 @@ extern crate std as realstd;
 
 // The standard macros that are not built-in to the compiler.
 #[macro_use]
-mod macros;
+#[doc(hidden)]
+#[unstable(feature = "std_internals", issue = "none")]
+pub mod macros;
 
 // The runtime entry point and a few unstable public functions used by the
 // compiler

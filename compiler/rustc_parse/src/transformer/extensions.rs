@@ -11,7 +11,7 @@ use rustc_session::parse::ParseSess;
 use rustc_span::{FileName, Span};
 use thin_vec::ThinVec;
 
-use crate::parser::{ForceCollect, Parser};
+use crate::parser::{AllowConstBlockItems, ForceCollect, Parser};
 use crate::source_str_to_stream;
 
 /// Extensions source code - embedded at compile time from individual files.
@@ -79,7 +79,7 @@ pub fn parse_extensions(
     }
 
     loop {
-        match parser.parse_item(ForceCollect::No) {
+        match parser.parse_item(ForceCollect::No, AllowConstBlockItems::Yes) {
             Ok(Some(item)) => {
                 items.push(item);
             }

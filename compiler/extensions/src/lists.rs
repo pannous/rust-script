@@ -5,12 +5,8 @@
 // Array accessor methods (head, tail, first, last, etc.)
 // Implemented specifically for arrays/slices to avoid conflict with StringExtensions
 
-// Only import rand for standalone extension builds (when used as a separate crate)
-// When injected into scripts, random functions use simple fallbacks without rand
 // NOTE: This use statement is filtered out during script injection by filter_out_standalone_cfg
 // #[cfg(feature = "standalone_extension")] use rand::RngExt;
-
-use rand::RngExt;
 
 #[allow(dead_code)]
 pub trait ArrayExtensions<T: Clone> {

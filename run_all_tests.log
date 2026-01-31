@@ -1,9 +1,11 @@
-rustc 1.94.0-dev
+rustc 1.95.0-dev
 Probe Test Runner
 Using: /opt/other/rust/rustc
 Mode: [0;33mall[0m (includes WIP files)
 
-
-========================================
-Results: [0;32m0 passed[0m, [0;31m0 failed[0m, 0 skipped
-========================================
+[0;31m✗[0m test_and_or (compile)
+[0;31m✗[0m test_array_1indexed (compile)
+[0;31m✗[0m test_array_like_slice (compile)
+[0;31m✗[0m test_as_cast_comprehensive (compile)
+[0;31m✗[0m test_as_cast_convert (compile)
+[0;31m✗[0m test_as_cast (compile)

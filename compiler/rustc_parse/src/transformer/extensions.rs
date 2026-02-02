@@ -9,6 +9,7 @@
 use rustc_ast as ast;
 use rustc_session::parse::ParseSess;
 use rustc_span::{FileName, Span};
+use rustc_span::hygiene::SyntaxContext;
 use thin_vec::ThinVec;
 
 use crate::parser::{AllowConstBlockItems, ForceCollect, Parser};
@@ -32,6 +33,9 @@ pub fn parse_extensions(
     psess: &ParseSess,
     call_site: Span,
 ) -> ThinVec<Box<ast::Item>> {
+    // Use a stable, root hygiene context to avoid incremental hash instability.
+    let stable_call_site = call_site.with_ctxt(SyntaxContext::root());
+
     // Concatenate all extension source files
     let combined_source = [
         TRUTHY_SOURCE,
@@ -55,7 +59,7 @@ pub fn parse_extensions(
         psess,
         filename,
         source_without_macros.to_string(),
-        Some(call_site),  // Override all spans to call_site for visibility
+        Some(stable_call_site),  // Override all spans to a stable call_site for visibility
     ) {
         Ok(stream) => stream,
         Err(errs) => {
@@ -74,7 +78,7 @@ pub fn parse_extensions(
 
     // First, inject extern crate declarations for external dependencies
     for crate_name in external_crates {
-        let extern_crate = create_extern_crate_item(crate_name, call_site);
+        let extern_crate = create_extern_crate_item(crate_name, stable_call_site);
         items.push(extern_crate);
     }
 

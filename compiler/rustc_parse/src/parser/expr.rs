@@ -4733,6 +4733,60 @@ impl<'a> Parser<'a> {
                 false,
             )?;
 
+            // Check if this is a map literal: {key: value, ...}
+            // Convert to HashMap::from([("key", Val::from(value)), ...])
+            if !is_underscore_entry_point {
+                if let ExprKind::Struct(struct_expr) = &expr.kind {
+                    let span = expr.span;
+
+                    // Build ::std::collections::HashMap::from path
+                    let hashmap_from_path = Path {
+                        span,
+                        segments: thin_vec![
+                            PathSegment::from_ident(Ident::new(kw::PathRoot, span)),
+                            PathSegment::from_ident(Ident::new(sym::std, span)),
+                            PathSegment::from_ident(Ident::new(sym::collections, span)),
+                            PathSegment::from_ident(Ident::new(sym::HashMap, span)),
+                            PathSegment::from_ident(Ident::new(sym::from, span)),
+                        ],
+                        tokens: None,
+                    };
+                    let path_expr = self.mk_expr(span, ExprKind::Path(None, hashmap_from_path));
+
+                    // Helper to wrap value in Val::from(...)
+                    let mk_val_from = |this: &Self, value: Box<Expr>, sp: Span| -> Box<Expr> {
+                        let val_from_path = Path {
+                            span: sp,
+                            segments: thin_vec![
+                                PathSegment::from_ident(Ident::new(sym::Val, sp)),
+                                PathSegment::from_ident(Ident::new(sym::from, sp)),
+                            ],
+                            tokens: None,
+                        };
+                        let path_expr = this.mk_expr(sp, ExprKind::Path(None, val_from_path));
+                        this.mk_expr(sp, ExprKind::Call(path_expr, thin_vec![value]))
+                    };
+
+                    // Build [("key1", Val::from(v1)), ...]
+                    let tuple_exprs: ThinVec<Box<Expr>> = struct_expr
+                        .fields
+                        .iter()
+                        .map(|field| {
+                            let key_lit = token::Lit::new(token::LitKind::Str, field.ident.name, None);
+                            let key_expr = self.mk_expr(field.ident.span, ExprKind::Lit(key_lit));
+                            let val_expr = mk_val_from(self, field.expr.clone(), field.span);
+                            let tup = ExprKind::Tup(thin_vec![key_expr, val_expr]);
+                            self.mk_expr(field.span, tup)
+                        })
+                        .collect();
+
+                    let array_expr = self.mk_expr(span, ExprKind::Array(tuple_exprs));
+                    let map_call = self.mk_expr(span, ExprKind::Call(path_expr, thin_vec![array_expr]));
+
+                    return Ok(Some(map_call));
+                }
+            }
+
             let guar = if is_underscore_entry_point {
                 self.dcx().create_err(errors::StructLiteralPlaceholderPath { span }).emit()
             } else {

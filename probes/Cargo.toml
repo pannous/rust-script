@@ -11,9 +11,9 @@ edition = "2021"
 # Tests should be run with ./run_all_tests.sh using the custom rustc
 # Tests are .rust files compiled with custom rustc
 
-#[lib]
-#path = "lib.rs"
-#test = false
+[lib]
+path = "lib.rs"
+test = false
 
 # Auto-discover test files with .rust extension in tests/ directory
 # Cargo normally only looks for .rs files, so we need to explicitly list them
@@ -26,6 +26,10 @@ edition = "2021"
 
 [features]
 standalone_extension = []
+
+[[test]]
+name = "test_is_operator"
+path = "tests/test_is_operator.rust"
 
 [dependencies]
 rand = "0.10.0-rc.8"

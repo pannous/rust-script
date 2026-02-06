@@ -2095,7 +2095,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         ));
 
         let some_pat = self.pat_some(desugar_span, val_pat);
-        let some_arm = self.arm(some_pat, some_result);
+        let some_arm = self.arm(some_pat, some_result, desugar_span);
 
         let none_pat = self.pat_none(desugar_span);
         let none_result = self.arena.alloc(self.expr_enum_variant_lang_item(
@@ -2103,7 +2103,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             hir::LangItem::OptionNone,
             &[],
         ));
-        let none_arm = self.arm(none_pat, none_result);
+        let none_arm = self.arm(none_pat, none_result, desugar_span);
 
         hir::ExprKind::Match(
             receiver_expr,
@@ -2165,7 +2165,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         ));
 
         let some_pat = self.pat_some(desugar_span, val_pat);
-        let some_arm = self.arm(some_pat, some_result);
+        let some_arm = self.arm(some_pat, some_result, desugar_span);
 
         let none_pat = self.pat_none(desugar_span);
         let none_result = self.arena.alloc(self.expr_enum_variant_lang_item(
@@ -2173,7 +2173,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             hir::LangItem::OptionNone,
             &[],
         ));
-        let none_arm = self.arm(none_pat, none_result);
+        let none_arm = self.arm(none_pat, none_result, desugar_span);
 
         hir::ExprKind::Match(
             receiver_expr,
@@ -2207,10 +2207,10 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let val_expr = self.expr_ident(desugar_span, val_ident, val_pat_nid);
 
         let some_pat = self.pat_some(desugar_span, val_pat);
-        let some_arm = self.arm(some_pat, val_expr);
+        let some_arm = self.arm(some_pat, val_expr, desugar_span);
 
         let none_pat = self.pat_none(desugar_span);
-        let none_arm = self.arm(none_pat, rhs_expr);
+        let none_arm = self.arm(none_pat, rhs_expr, desugar_span);
 
         hir::ExprKind::Match(
             lhs_expr,

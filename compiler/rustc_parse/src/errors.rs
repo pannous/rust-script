@@ -3666,3 +3666,23 @@ impl TokenDescription {
         }
     }
 }
+
+// Custom fork: Upstream error types added during merge
+#[derive(Diagnostic)]
+#[diag(parse_question_mark_in_type)]
+pub(crate) struct QuestionMarkInType {
+    #[primary_span]
+    #[label]
+    pub span: Span,
+    #[subdiagnostic]
+    pub sugg: QuestionMarkInTypeSugg,
+}
+
+#[derive(Subdiagnostic)]
+#[multipart_suggestion(parse_suggestion, applicability = "machine-applicable")]
+pub(crate) struct QuestionMarkInTypeSugg {
+    #[suggestion_part(code = "Option<")]
+    pub left: Span,
+    #[suggestion_part(code = ">")]
+    pub right: Span,
+}

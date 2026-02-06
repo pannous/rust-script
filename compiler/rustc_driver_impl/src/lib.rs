@@ -88,6 +88,8 @@ pub mod pretty;
 mod print;
 pub mod highlighter;
 mod session_diagnostics;
+// Custom fork: Script mode support
+mod script_mode;
 
 // Keep the OS parts of this `cfg` in sync with the `cfg` on the `libc`
 // dependency in `compiler/rustc_driver/Cargo.toml`, to keep
@@ -106,44 +108,8 @@ use crate::session_diagnostics::{
     CantEmitMIR, RLinkEmptyVersionNumber, RLinkEncodingVersionMismatch, RLinkRustcVersionMismatch,
     RLinkWrongFileType, RlinkCorruptFile, RlinkNotAFile, RlinkUnableToRead, UnstableFeatureUsage,
 };
-
-/// Check if the input file has a shebang line (used for script mode auto-run).
-/// A shebang is `#!` at the start, but NOT `#![` which is a Rust attribute.
-fn has_shebang(input: &Input) -> bool {
-    match input {
-        Input::File(path) => {
-            if let Ok(content) = fs::read_to_string(path) {
-                if let Some(rest) = content.strip_prefix("#!") {
-                    rest.chars().next() != Some('[')
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        }
-        Input::Str { input, .. } => {
-            if let Some(rest) = input.strip_prefix("#!") {
-                rest.chars().next() != Some('[')
-            } else {
-                false
-            }
-        }
-    }
-}
-
-/// Get the default output executable path for script mode.
-/// Returns a path relative to current directory (prefixed with ./) so Command can find it.
-fn get_script_output_path(input: &Input) -> Option<PathBuf> {
-    match input {
-        Input::File(path) => {
-            let stem = path.file_stem()?;
-            // Prefix with "./" so Command::new finds it in current directory
-            Some(PathBuf::from(".").join(stem))
-        }
-        Input::Str { .. } => None,
-    }
-}
+// Custom fork: Import script mode helpers
+use crate::script_mode::{get_script_output_path, has_shebang};
 
 pub fn default_translator() -> Translator {
     Translator::with_fallback_bundle(DEFAULT_LOCALE_RESOURCES.to_vec(), false)
@@ -432,11 +398,11 @@ pub fn run_compiler(at_args: &[String], callbacks: &mut (dyn Callbacks + Send)) 
                         Ok(status) => {
                             // Clean up the temporary binary after execution
                             let _ = fs::remove_file(&exe_path);
-                            process::exit(status.code().unwrap_or(1));
+                            std::process::exit(status.code().unwrap_or(1));
                         }
                         Err(e) => {
                             eprintln!("error: failed to run {}: {}", exe_path.display(), e);
-                            process::exit(1);
+                            std::process::exit(1);
                         }
                     }
                 }

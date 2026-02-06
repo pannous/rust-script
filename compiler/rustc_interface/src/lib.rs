@@ -12,6 +12,8 @@ mod limits;
 pub mod passes;
 mod proc_macro_decls;
 mod queries;
+// Custom fork: Script mode auto-crate provision
+mod script_crates;
 pub mod util;
 
 pub use callbacks::setup_callbacks;

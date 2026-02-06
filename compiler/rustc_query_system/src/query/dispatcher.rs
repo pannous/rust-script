@@ -5,7 +5,7 @@ use rustc_data_structures::fingerprint::Fingerprint;
 use rustc_span::ErrorGuaranteed;
 
 use super::QueryStackFrameExtra;
-use crate::dep_graph::{DepKind, DepNode, DepNodeParams, HasDepContext, SerializedDepNodeIndex};
+use crate::dep_graph::{DepKind, DepNode, DepNodeKey, HasDepContext, SerializedDepNodeIndex};
 use crate::ich::StableHashingContext;
 use crate::query::caches::QueryCache;
 use crate::query::{CycleError, CycleErrorHandling, DepNodeIndex, QueryContext, QueryState};
@@ -25,7 +25,7 @@ type DepContextOf<'tcx, This: QueryDispatcher<'tcx>> =
 /// Those types are not visible from this `rustc_query_system` crate.
 ///
 /// "Dispatcher" should be understood as a near-synonym of "vtable".
-pub trait QueryDispatcher<'tcx>: Copy {
+pub trait QueryDispatcher<'tcx>: Copy + 'tcx {
     fn name(self) -> &'static str;
 
     /// Query context used by this dispatcher, i.e. `rustc_query_impl::QueryCtxt`.
@@ -33,7 +33,7 @@ pub trait QueryDispatcher<'tcx>: Copy {
 
     // `Key` and `Value` are `Copy` instead of `Clone` to ensure copying them stays cheap,
     // but it isn't necessary.
-    type Key: DepNodeParams<DepContextOf<'tcx, Self>> + Eq + Hash + Copy + Debug;
+    type Key: DepNodeKey<DepContextOf<'tcx, Self>> + Eq + Hash + Copy + Debug;
     type Value: Copy;
 
     type Cache: QueryCache<Key = Self::Key, Value = Self::Value>;
@@ -41,10 +41,10 @@ pub trait QueryDispatcher<'tcx>: Copy {
     fn format_value(self) -> fn(&Self::Value) -> String;
 
     // Don't use this method to access query results, instead use the methods on TyCtxt
-    fn query_state<'a>(self, tcx: Self::Qcx) -> &'a QueryState<'tcx, Self::Key>;
+    fn query_state(self, tcx: Self::Qcx) -> &'tcx QueryState<'tcx, Self::Key>;
 
     // Don't use this method to access query results, instead use the methods on TyCtxt
-    fn query_cache<'a>(self, tcx: Self::Qcx) -> &'a Self::Cache;
+    fn query_cache(self, tcx: Self::Qcx) -> &'tcx Self::Cache;
 
     fn will_cache_on_disk_for_key(self, tcx: DepContextOf<'tcx, Self>, key: &Self::Key) -> bool;
 

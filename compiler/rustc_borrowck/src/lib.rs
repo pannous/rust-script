@@ -4,6 +4,7 @@
 #![allow(internal_features)]
 #![feature(assert_matches)]
 #![feature(box_patterns)]
+#![feature(default_field_values)]
 #![feature(file_buffered)]
 #![feature(if_let_guard)]
 #![feature(negative_impls)]
@@ -97,8 +98,6 @@ mod used_muts;
 
 /// A public API provided for the Rust compiler consumers.
 pub mod consumers;
-
-rustc_fluent_macro::fluent_messages! { "../messages.ftl" }
 
 /// Associate some local constants with the `'tcx` lifetime
 struct TyCtxtConsts<'tcx>(PhantomData<&'tcx ()>);

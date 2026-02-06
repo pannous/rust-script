@@ -289,7 +289,7 @@ fn add_query_desc_cached_impl(
         cached.extend(quote! {
             #[allow(unused_variables, unused_braces, rustc::pass_by_value)]
             #[inline]
-            pub fn #name<'tcx>(#tcx: TyCtxt<'tcx>, #key: &crate::query::queries::#name::Key<'tcx>) -> bool {
+            pub fn #name<'tcx>(#tcx: TyCtxt<'tcx>, #key: &crate::queries::#name::Key<'tcx>) -> bool {
                 #ra_hint
                 #expr
             }
@@ -301,11 +301,9 @@ fn add_query_desc_cached_impl(
 
     let desc = quote! {
         #[allow(unused_variables)]
-        pub fn #name<'tcx>(tcx: TyCtxt<'tcx>, key: crate::query::queries::#name::Key<'tcx>) -> String {
+        pub fn #name<'tcx>(tcx: TyCtxt<'tcx>, key: crate::queries::#name::Key<'tcx>) -> String {
             let (#tcx, #key) = (tcx, key);
-            ::rustc_middle::ty::print::with_no_trimmed_paths!(
-                format!(#desc)
-            )
+            format!(#desc)
         }
     };
 
@@ -359,6 +357,7 @@ pub(super) fn rustc_queries(input: TokenStream) -> TokenStream {
             no_hash,
             anon,
             eval_always,
+            feedable,
             depth_limit,
             separate_provide_extern,
             return_result_from_ensure_ok,
@@ -430,7 +429,14 @@ pub(super) fn rustc_queries(input: TokenStream) -> TokenStream {
                 $macro!(#feedable_queries);
             }
         }
-        pub mod descs {
+
+        /// Functions that format a human-readable description of each query
+        /// and its key, as specified by the `desc` query modifier.
+        ///
+        /// (The leading `_` avoids collisions with actual query names when
+        /// expanded in `rustc_middle::queries`, and makes this macro-generated
+        /// module easier to search for.)
+        pub mod _description_fns {
             use super::*;
             #query_description_stream
         }

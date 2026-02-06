@@ -87,6 +87,10 @@ passes_deprecated_annotation_has_no_effect =
 passes_deprecated_attribute =
     deprecated attribute must be paired with either stable or unstable attribute
 
+passes_diagnostic_diagnostic_on_const_only_for_non_const_trait_impls =
+    `#[diagnostic::on_const]` can only be applied to non-const trait impls
+    .label = this is a const trait impl
+
 passes_diagnostic_diagnostic_on_const_only_for_trait_impls =
     `#[diagnostic::on_const]` can only be applied to trait impls
     .label = not a trait impl
@@ -437,8 +441,6 @@ passes_rustc_allow_const_fn_unstable =
 
 passes_rustc_const_stable_indirect_pairing =
     `const_stable_indirect` attribute does not make sense on `rustc_const_stable` function, its behavior is already implied
-passes_rustc_dirty_clean =
-    attribute requires -Z query-dep-graph to be enabled
 
 passes_rustc_force_inline_coro =
     attribute cannot be applied to a `async`, `gen` or `async gen` function

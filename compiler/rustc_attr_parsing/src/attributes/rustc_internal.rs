@@ -1,10 +1,16 @@
+use std::path::PathBuf;
+
 use rustc_ast::{LitIntType, LitKind, MetaItemLit};
-use rustc_hir::attrs::RustcLayoutType;
+use rustc_hir::attrs::{
+    BorrowckGraphvizFormatKind, RustcCleanAttribute, RustcCleanQueries, RustcLayoutType,
+    RustcMirKind,
+};
 use rustc_session::errors;
+use rustc_span::Symbol;
 
 use super::prelude::*;
 use super::util::parse_single_integer;
-use crate::session_diagnostics::RustcScalableVectorCountOutOfRange;
+use crate::session_diagnostics::{AttributeRequiresOpt, RustcScalableVectorCountOutOfRange};
 
 pub(crate) struct RustcMainParser;
 
@@ -232,7 +238,7 @@ impl<S: Stage> NoArgsAttributeParser<S> for RustcLintUntrackedQueryInformationPa
 pub(crate) struct RustcObjectLifetimeDefaultParser;
 
 impl<S: Stage> SingleAttributeParser<S> for RustcObjectLifetimeDefaultParser {
-    const PATH: &[rustc_span::Symbol] = &[sym::rustc_object_lifetime_default];
+    const PATH: &[Symbol] = &[sym::rustc_object_lifetime_default];
     const ATTRIBUTE_ORDER: AttributeOrder = AttributeOrder::KeepInnermost;
     const ON_DUPLICATE: OnDuplicate<S> = OnDuplicate::Error;
     const ALLOWED_TARGETS: AllowedTargets = AllowedTargets::AllowList(&[Allow(Target::Struct)]);
@@ -269,7 +275,7 @@ impl<S: Stage> SingleAttributeParser<S> for RustcSimdMonomorphizeLaneLimitParser
 pub(crate) struct RustcScalableVectorParser;
 
 impl<S: Stage> SingleAttributeParser<S> for RustcScalableVectorParser {
-    const PATH: &[rustc_span::Symbol] = &[sym::rustc_scalable_vector];
+    const PATH: &[Symbol] = &[sym::rustc_scalable_vector];
     const ATTRIBUTE_ORDER: AttributeOrder = AttributeOrder::KeepInnermost;
     const ON_DUPLICATE: OnDuplicate<S> = OnDuplicate::Error;
     const ALLOWED_TARGETS: AllowedTargets = AllowedTargets::AllowList(&[Allow(Target::Struct)]);
@@ -307,6 +313,14 @@ impl<S: Stage> NoArgsAttributeParser<S> for RustcHasIncoherentInherentImplsParse
     const CREATE: fn(Span) -> AttributeKind = |_| AttributeKind::RustcHasIncoherentInherentImpls;
 }
 
+pub(crate) struct RustcHiddenTypeOfOpaquesParser;
+
+impl<S: Stage> NoArgsAttributeParser<S> for RustcHiddenTypeOfOpaquesParser {
+    const PATH: &[Symbol] = &[sym::rustc_hidden_type_of_opaques];
+    const ON_DUPLICATE: OnDuplicate<S> = OnDuplicate::Error;
+    const ALLOWED_TARGETS: AllowedTargets = AllowedTargets::AllowList(&[Allow(Target::Crate)]);
+    const CREATE: fn(Span) -> AttributeKind = |_| AttributeKind::RustcHiddenTypeOfOpaques;
+}
 pub(crate) struct RustcNounwindParser;
 
 impl<S: Stage> NoArgsAttributeParser<S> for RustcNounwindParser {
@@ -334,7 +348,7 @@ impl<S: Stage> NoArgsAttributeParser<S> for RustcOffloadKernelParser {
 pub(crate) struct RustcLayoutParser;
 
 impl<S: Stage> CombineAttributeParser<S> for RustcLayoutParser {
-    const PATH: &[rustc_span::Symbol] = &[sym::rustc_layout];
+    const PATH: &[Symbol] = &[sym::rustc_layout];
 
     type Item = RustcLayoutType;
 
@@ -349,7 +363,6 @@ impl<S: Stage> CombineAttributeParser<S> for RustcLayoutParser {
 
     const TEMPLATE: AttributeTemplate =
         template!(List: &["abi", "align", "size", "homogenous_aggregate", "debug"]);
-
     fn extend(
         cx: &mut AcceptContext<'_, '_, S>,
         args: &ArgParser,
@@ -389,6 +402,94 @@ impl<S: Stage> CombineAttributeParser<S> for RustcLayoutParser {
     }
 }
 
+pub(crate) struct RustcMirParser;
+
+impl<S: Stage> CombineAttributeParser<S> for RustcMirParser {
+    const PATH: &[Symbol] = &[sym::rustc_mir];
+
+    type Item = RustcMirKind;
+
+    const CONVERT: ConvertFn<Self::Item> = |items, _| AttributeKind::RustcMir(items);
+
+    const ALLOWED_TARGETS: AllowedTargets = AllowedTargets::AllowList(&[
+        Allow(Target::Fn),
+        Allow(Target::Method(MethodKind::Inherent)),
+        Allow(Target::Method(MethodKind::TraitImpl)),
+        Allow(Target::Method(MethodKind::Trait { body: false })),
+        Allow(Target::Method(MethodKind::Trait { body: true })),
+    ]);
+
+    const TEMPLATE: AttributeTemplate = template!(List: &["arg1, arg2, ..."]);
+
+    fn extend(
+        cx: &mut AcceptContext<'_, '_, S>,
+        args: &ArgParser,
+    ) -> impl IntoIterator<Item = Self::Item> {
+        let Some(list) = args.list() else {
+            cx.expected_list(cx.attr_span, args);
+            return ThinVec::new();
+        };
+
+        list.mixed()
+            .filter_map(|arg| arg.meta_item())
+            .filter_map(|mi| {
+                if let Some(ident) = mi.ident() {
+                    match ident.name {
+                        sym::rustc_peek_maybe_init => Some(RustcMirKind::PeekMaybeInit),
+                        sym::rustc_peek_maybe_uninit => Some(RustcMirKind::PeekMaybeUninit),
+                        sym::rustc_peek_liveness => Some(RustcMirKind::PeekLiveness),
+                        sym::stop_after_dataflow => Some(RustcMirKind::StopAfterDataflow),
+                        sym::borrowck_graphviz_postflow => {
+                            let Some(nv) = mi.args().name_value() else {
+                                cx.expected_name_value(
+                                    mi.span(),
+                                    Some(sym::borrowck_graphviz_postflow),
+                                );
+                                return None;
+                            };
+                            let Some(path) = nv.value_as_str() else {
+                                cx.expected_string_literal(nv.value_span, None);
+                                return None;
+                            };
+                            let path = PathBuf::from(path.to_string());
+                            if path.file_name().is_some() {
+                                Some(RustcMirKind::BorrowckGraphvizPostflow { path })
+                            } else {
+                                cx.expected_filename_literal(nv.value_span);
+                                None
+                            }
+                        }
+                        sym::borrowck_graphviz_format => {
+                            let Some(nv) = mi.args().name_value() else {
+                                cx.expected_name_value(
+                                    mi.span(),
+                                    Some(sym::borrowck_graphviz_format),
+                                );
+                                return None;
+                            };
+                            let Some(format) = nv.value_as_ident() else {
+                                cx.expected_identifier(nv.value_span);
+                                return None;
+                            };
+                            match format.name {
+                                sym::two_phase => Some(RustcMirKind::BorrowckGraphvizFormat {
+                                    format: BorrowckGraphvizFormatKind::TwoPhase,
+                                }),
+                                _ => {
+                                    cx.expected_specific_argument(format.span, &[sym::two_phase]);
+                                    None
+                                }
+                            }
+                        }
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+}
 pub(crate) struct RustcNonConstTraitMethodParser;
 
 impl<S: Stage> NoArgsAttributeParser<S> for RustcNonConstTraitMethodParser {
@@ -399,4 +500,263 @@ impl<S: Stage> NoArgsAttributeParser<S> for RustcNonConstTraitMethodParser {
         Allow(Target::Method(MethodKind::Trait { body: false })),
     ]);
     const CREATE: fn(Span) -> AttributeKind = |_| AttributeKind::RustcNonConstTraitMethod;
+}
+
+pub(crate) struct RustcCleanParser;
+
+impl<S: Stage> CombineAttributeParser<S> for RustcCleanParser {
+    const PATH: &[Symbol] = &[sym::rustc_clean];
+
+    type Item = RustcCleanAttribute;
+
+    const CONVERT: ConvertFn<Self::Item> = |items, _| AttributeKind::RustcClean(items);
+
+    const ALLOWED_TARGETS: AllowedTargets = AllowedTargets::AllowList(&[
+        // tidy-alphabetical-start
+        Allow(Target::AssocConst),
+        Allow(Target::AssocTy),
+        Allow(Target::Const),
+        Allow(Target::Enum),
+        Allow(Target::Expression),
+        Allow(Target::Field),
+        Allow(Target::Fn),
+        Allow(Target::ForeignMod),
+        Allow(Target::Impl { of_trait: false }),
+        Allow(Target::Impl { of_trait: true }),
+        Allow(Target::Method(MethodKind::Inherent)),
+        Allow(Target::Method(MethodKind::Trait { body: false })),
+        Allow(Target::Method(MethodKind::Trait { body: true })),
+        Allow(Target::Method(MethodKind::TraitImpl)),
+        Allow(Target::Mod),
+        Allow(Target::Static),
+        Allow(Target::Struct),
+        Allow(Target::Trait),
+        Allow(Target::TyAlias),
+        Allow(Target::Union),
+        // tidy-alphabetical-end
+    ]);
+
+    const TEMPLATE: AttributeTemplate =
+        template!(List: &[r#"cfg = "...", /*opt*/ label = "...", /*opt*/ except = "...""#]);
+
+    fn extend(
+        cx: &mut AcceptContext<'_, '_, S>,
+        args: &ArgParser,
+    ) -> impl IntoIterator<Item = Self::Item> {
+        if !cx.cx.sess.opts.unstable_opts.query_dep_graph {
+            cx.emit_err(AttributeRequiresOpt { span: cx.attr_span, opt: "-Z query-dep-graph" });
+        }
+        let Some(list) = args.list() else {
+            cx.expected_list(cx.attr_span, args);
+            return None;
+        };
+        let mut except = None;
+        let mut loaded_from_disk = None;
+        let mut cfg = None;
+
+        for item in list.mixed() {
+            let Some((value, name)) =
+                item.meta_item().and_then(|m| Option::zip(m.args().name_value(), m.ident()))
+            else {
+                cx.expected_name_value(item.span(), None);
+                continue;
+            };
+            let value_span = value.value_span;
+            let Some(value) = value.value_as_str() else {
+                cx.expected_string_literal(value_span, None);
+                continue;
+            };
+            match name.name {
+                sym::cfg if cfg.is_some() => {
+                    cx.duplicate_key(item.span(), sym::cfg);
+                }
+
+                sym::cfg => {
+                    cfg = Some(value);
+                }
+                sym::except if except.is_some() => {
+                    cx.duplicate_key(item.span(), sym::except);
+                }
+                sym::except => {
+                    let entries =
+                        value.as_str().split(',').map(|s| Symbol::intern(s.trim())).collect();
+                    except = Some(RustcCleanQueries { entries, span: value_span });
+                }
+                sym::loaded_from_disk if loaded_from_disk.is_some() => {
+                    cx.duplicate_key(item.span(), sym::loaded_from_disk);
+                }
+                sym::loaded_from_disk => {
+                    let entries =
+                        value.as_str().split(',').map(|s| Symbol::intern(s.trim())).collect();
+                    loaded_from_disk = Some(RustcCleanQueries { entries, span: value_span });
+                }
+                _ => {
+                    cx.expected_specific_argument(
+                        name.span,
+                        &[sym::cfg, sym::except, sym::loaded_from_disk],
+                    );
+                }
+            }
+        }
+        let Some(cfg) = cfg else {
+            cx.expected_specific_argument(list.span, &[sym::cfg]);
+            return None;
+        };
+
+        Some(RustcCleanAttribute { span: cx.attr_span, cfg, except, loaded_from_disk })
+    }
+}
+
+pub(crate) struct RustcIfThisChangedParser;
+
+impl<S: Stage> SingleAttributeParser<S> for RustcIfThisChangedParser {
+    const PATH: &[Symbol] = &[sym::rustc_if_this_changed];
+
+    const ATTRIBUTE_ORDER: AttributeOrder = AttributeOrder::KeepOutermost;
+
+    const ON_DUPLICATE: OnDuplicate<S> = OnDuplicate::Error;
+
+    const ALLOWED_TARGETS: AllowedTargets = AllowedTargets::AllowList(&[
+        // tidy-alphabetical-start
+        Allow(Target::AssocConst),
+        Allow(Target::AssocTy),
+        Allow(Target::Const),
+        Allow(Target::Enum),
+        Allow(Target::Expression),
+        Allow(Target::Field),
+        Allow(Target::Fn),
+        Allow(Target::ForeignMod),
+        Allow(Target::Impl { of_trait: false }),
+        Allow(Target::Impl { of_trait: true }),
+        Allow(Target::Method(MethodKind::Inherent)),
+        Allow(Target::Method(MethodKind::Trait { body: false })),
+        Allow(Target::Method(MethodKind::Trait { body: true })),
+        Allow(Target::Method(MethodKind::TraitImpl)),
+        Allow(Target::Mod),
+        Allow(Target::Static),
+        Allow(Target::Struct),
+        Allow(Target::Trait),
+        Allow(Target::TyAlias),
+        Allow(Target::Union),
+        // tidy-alphabetical-end
+    ]);
+
+    const TEMPLATE: AttributeTemplate = template!(Word, List: &["DepNode"]);
+
+    fn convert(cx: &mut AcceptContext<'_, '_, S>, args: &ArgParser) -> Option<AttributeKind> {
+        if !cx.cx.sess.opts.unstable_opts.query_dep_graph {
+            cx.emit_err(AttributeRequiresOpt { span: cx.attr_span, opt: "-Z query-dep-graph" });
+        }
+        match args {
+            ArgParser::NoArgs => Some(AttributeKind::RustcIfThisChanged(cx.attr_span, None)),
+            ArgParser::List(list) => {
+                let Some(item) = list.single() else {
+                    cx.expected_single_argument(list.span);
+                    return None;
+                };
+                let Some(ident) = item.meta_item().and_then(|item| item.ident()) else {
+                    cx.expected_identifier(item.span());
+                    return None;
+                };
+                Some(AttributeKind::RustcIfThisChanged(cx.attr_span, Some(ident.name)))
+            }
+            ArgParser::NameValue(_) => {
+                cx.expected_list_or_no_args(cx.inner_span);
+                None
+            }
+        }
+    }
+}
+
+pub(crate) struct RustcThenThisWouldNeedParser;
+
+impl<S: Stage> CombineAttributeParser<S> for RustcThenThisWouldNeedParser {
+    const PATH: &[Symbol] = &[sym::rustc_then_this_would_need];
+    type Item = Ident;
+
+    const CONVERT: ConvertFn<Self::Item> =
+        |items, span| AttributeKind::RustcThenThisWouldNeed(span, items);
+    const ALLOWED_TARGETS: AllowedTargets = AllowedTargets::AllowList(&[
+        // tidy-alphabetical-start
+        Allow(Target::AssocConst),
+        Allow(Target::AssocTy),
+        Allow(Target::Const),
+        Allow(Target::Enum),
+        Allow(Target::Expression),
+        Allow(Target::Field),
+        Allow(Target::Fn),
+        Allow(Target::ForeignMod),
+        Allow(Target::Impl { of_trait: false }),
+        Allow(Target::Impl { of_trait: true }),
+        Allow(Target::Method(MethodKind::Inherent)),
+        Allow(Target::Method(MethodKind::Trait { body: false })),
+        Allow(Target::Method(MethodKind::Trait { body: true })),
+        Allow(Target::Method(MethodKind::TraitImpl)),
+        Allow(Target::Mod),
+        Allow(Target::Static),
+        Allow(Target::Struct),
+        Allow(Target::Trait),
+        Allow(Target::TyAlias),
+        Allow(Target::Union),
+        // tidy-alphabetical-end
+    ]);
+
+    const TEMPLATE: AttributeTemplate = template!(List: &["DepNode"]);
+
+    fn extend(
+        cx: &mut AcceptContext<'_, '_, S>,
+        args: &ArgParser,
+    ) -> impl IntoIterator<Item = Self::Item> {
+        if !cx.cx.sess.opts.unstable_opts.query_dep_graph {
+            cx.emit_err(AttributeRequiresOpt { span: cx.attr_span, opt: "-Z query-dep-graph" });
+        }
+        let Some(item) = args.list().and_then(|l| l.single()) else {
+            cx.expected_single_argument(cx.inner_span);
+            return None;
+        };
+        let Some(ident) = item.meta_item().and_then(|item| item.ident()) else {
+            cx.expected_identifier(item.span());
+            return None;
+        };
+        Some(ident)
+    }
+}
+
+pub(crate) struct RustcEffectiveVisibilityParser;
+
+impl<S: Stage> NoArgsAttributeParser<S> for RustcEffectiveVisibilityParser {
+    const PATH: &'static [Symbol] = &[sym::rustc_effective_visibility];
+    const ON_DUPLICATE: OnDuplicate<S> = OnDuplicate::Error;
+    const ALLOWED_TARGETS: AllowedTargets = AllowedTargets::AllowList(&[
+        Allow(Target::Use),
+        Allow(Target::Static),
+        Allow(Target::Const),
+        Allow(Target::Fn),
+        Allow(Target::Closure),
+        Allow(Target::Mod),
+        Allow(Target::ForeignMod),
+        Allow(Target::TyAlias),
+        Allow(Target::Enum),
+        Allow(Target::Variant),
+        Allow(Target::Struct),
+        Allow(Target::Field),
+        Allow(Target::Union),
+        Allow(Target::Trait),
+        Allow(Target::TraitAlias),
+        Allow(Target::Impl { of_trait: false }),
+        Allow(Target::Impl { of_trait: true }),
+        Allow(Target::AssocConst),
+        Allow(Target::Method(MethodKind::Inherent)),
+        Allow(Target::Method(MethodKind::Trait { body: false })),
+        Allow(Target::Method(MethodKind::Trait { body: true })),
+        Allow(Target::Method(MethodKind::TraitImpl)),
+        Allow(Target::AssocTy),
+        Allow(Target::ForeignFn),
+        Allow(Target::ForeignStatic),
+        Allow(Target::ForeignTy),
+        Allow(Target::MacroDef),
+        Allow(Target::PatField),
+        Allow(Target::Crate),
+    ]);
+    const CREATE: fn(Span) -> AttributeKind = |_| AttributeKind::RustcEffectiveVisibility;
 }

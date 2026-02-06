@@ -8,7 +8,7 @@ use std::{env, io};
 use rand::{RngCore, rng};
 use rustc_data_structures::base_n::{CASE_INSENSITIVE, ToBaseN};
 use rustc_data_structures::flock;
-use rustc_data_structures::fx::{FxHashMap, FxIndexSet};
+use rustc_data_structures::fx::{FxHashMap, FxHashSet, FxIndexSet};
 use rustc_data_structures::profiling::{SelfProfiler, SelfProfilerRef};
 use rustc_data_structures::sync::{DynSend, DynSync, Lock, MappedReadGuard, ReadGuard, RwLock};
 use rustc_errors::annotate_snippet_emitter_writer::AnnotateSnippetEmitter;
@@ -154,6 +154,10 @@ pub struct Session {
     /// preserved with a flag like `-C save-temps`, since these files may be
     /// hard linked.
     pub invocation_temp: Option<String>,
+
+    /// The names of intrinsics that the current codegen backend replaces
+    /// with its own implementations.
+    pub replaced_intrinsics: FxHashSet<Symbol>,
 }
 
 #[derive(Clone, Copy)]
@@ -991,7 +995,6 @@ pub fn build_session(
     sopts: config::Options,
     io: CompilerIO,
     fluent_bundle: Option<Arc<rustc_errors::FluentBundle>>,
-    registry: rustc_errors::registry::Registry,
     fluent_resources: Vec<&'static str>,
     driver_lint_caps: FxHashMap<lint::LintId, lint::Level>,
     target: Target,
@@ -1020,9 +1023,8 @@ pub fn build_session(
     let source_map = rustc_span::source_map::get_source_map().unwrap();
     let emitter = default_emitter(&sopts, Arc::clone(&source_map), translator);
 
-    let mut dcx = DiagCtxt::new(emitter)
-        .with_flags(sopts.unstable_opts.dcx_flags(can_emit_warnings))
-        .with_registry(registry);
+    let mut dcx =
+        DiagCtxt::new(emitter).with_flags(sopts.unstable_opts.dcx_flags(can_emit_warnings));
     if let Some(ice_file) = ice_file {
         dcx = dcx.with_ice_file(ice_file);
     }
@@ -1120,6 +1122,7 @@ pub fn build_session(
         target_filesearch,
         host_filesearch,
         invocation_temp,
+        replaced_intrinsics: FxHashSet::default(), // filled by `run_compiler`
     };
 
     validate_commandline_args_with_session_available(&sess);
@@ -1455,8 +1458,7 @@ impl EarlyDiagCtxt {
 fn mk_emitter(output: ErrorOutputType) -> Box<DynEmitter> {
     // FIXME(#100717): early errors aren't translated at the moment, so this is fine, but it will
     // need to reference every crate that might emit an early error for translation to work.
-    let translator =
-        Translator::with_fallback_bundle(vec![rustc_errors::DEFAULT_LOCALE_RESOURCE], false);
+    let translator = Translator::with_fallback_bundle(vec![], false);
     let emitter: Box<DynEmitter> = match output {
         config::ErrorOutputType::HumanReadable { kind, color_config } => match kind {
             HumanReadableErrorType { short, unicode } => Box::new(

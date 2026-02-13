@@ -56,7 +56,7 @@ This API is completely unstable and subject to change.
 */
 
 // tidy-alphabetical-start
-#![feature(assert_matches)]
+#![cfg_attr(bootstrap, feature(assert_matches))]
 #![feature(default_field_values)]
 #![feature(gen_blocks)]
 #![feature(if_let_guard)]
@@ -233,7 +233,7 @@ pub fn check_crate(tcx: TyCtxt<'_>) {
             }
             DefKind::Const
                 if !tcx.generics_of(item_def_id).own_requires_monomorphization()
-                    && !tcx.is_type_const(item_def_id.into()) =>
+                    && !tcx.is_type_const(item_def_id) =>
             {
                 // FIXME(generic_const_items): Passing empty instead of identity args is fishy but
                 //                             seems to be fine for now. Revisit this!

@@ -14,7 +14,8 @@ use rustc_hir::limit::Limit;
 use rustc_index::Idx;
 use rustc_middle::bug;
 use rustc_middle::dep_graph::{
-    self, DepContext, DepKindVTable, DepNode, DepNodeIndex, SerializedDepNodeIndex, dep_kinds,
+    self, DepContext, DepKindVTable, DepNode, DepNodeIndex, DepsType, SerializedDepNodeIndex,
+    dep_kinds,
 };
 use rustc_middle::query::Key;
 use rustc_middle::query::on_disk_cache::{
@@ -26,16 +27,17 @@ use rustc_middle::ty::print::with_reduced_queries;
 use rustc_middle::ty::tls::{self, ImplicitCtxt};
 use rustc_middle::ty::{self, TyCtxt};
 use rustc_query_system::dep_graph::{DepNodeKey, FingerprintStyle, HasDepContext};
-use rustc_query_system::ich::StableHashingContext;
 use rustc_query_system::query::{
-    QueryCache, QueryContext, QueryDispatcher, QueryJobId, QueryMap, QuerySideEffect,
-    QueryStackDeferred, QueryStackFrame, QueryStackFrameExtra, force_query,
+    QueryCache, QueryContext, QueryJobId, QuerySideEffect, QueryStackDeferred, QueryStackFrame,
+    QueryStackFrameExtra,
 };
 use rustc_serialize::{Decodable, Encodable};
 use rustc_span::def_id::LOCAL_CRATE;
 
-use crate::QueryDispatcherUnerased;
 use crate::error::{QueryOverflow, QueryOverflowNote};
+use crate::execution::{all_inactive, force_query};
+use crate::job::{QueryMap, find_dep_kind_root};
+use crate::{QueryDispatcherUnerased, QueryFlags, SemiDynamicQueryDispatcher};
 
 /// Implements [`QueryContext`] for use by [`rustc_query_system`], since that
 /// crate does not have direct access to [`TyCtxt`].
@@ -54,7 +56,7 @@ impl<'tcx> QueryCtxt<'tcx> {
         let query_map = self
             .collect_active_jobs_from_all_queries(true)
             .expect("failed to collect active queries");
-        let (info, depth) = job.find_dep_kind_root(query_map);
+        let (info, depth) = find_dep_kind_root(job, query_map);
 
         let suggested_limit = match self.tcx.recursion_limit() {
             Limit(0) => Limit(2),
@@ -68,26 +70,9 @@ impl<'tcx> QueryCtxt<'tcx> {
             crate_name: self.tcx.crate_name(LOCAL_CRATE),
         });
     }
-}
-
-impl<'tcx> HasDepContext for QueryCtxt<'tcx> {
-    type Deps = rustc_middle::dep_graph::DepsType;
-    type DepContext = TyCtxt<'tcx>;
 
     #[inline]
-    fn dep_context(&self) -> &Self::DepContext {
-        &self.tcx
-    }
-}
-
-impl<'tcx> QueryContext<'tcx> for QueryCtxt<'tcx> {
-    #[inline]
-    fn jobserver_proxy(&self) -> &Proxy {
-        &self.tcx.jobserver_proxy
-    }
-
-    #[inline]
-    fn next_job_id(self) -> QueryJobId {
+    pub(crate) fn next_job_id(self) -> QueryJobId {
         QueryJobId(
             NonZero::new(
                 self.tcx.query_system.jobs.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
@@ -97,60 +82,14 @@ impl<'tcx> QueryContext<'tcx> for QueryCtxt<'tcx> {
     }
 
     #[inline]
-    fn current_query_job(self) -> Option<QueryJobId> {
+    pub(crate) fn current_query_job(self) -> Option<QueryJobId> {
         tls::with_related_context(self.tcx, |icx| icx.query)
-    }
-
-    /// Returns a map of currently active query jobs, collected from all queries.
-    ///
-    /// If `require_complete` is `true`, this function locks all shards of the
-    /// query results to produce a complete map, which always returns `Ok`.
-    /// Otherwise, it may return an incomplete map as an error if any shard
-    /// lock cannot be acquired.
-    ///
-    /// Prefer passing `false` to `require_complete` to avoid potential deadlocks,
-    /// especially when called from within a deadlock handler, unless a
-    /// complete map is needed and no deadlock is possible at this call site.
-    fn collect_active_jobs_from_all_queries(
-        self,
-        require_complete: bool,
-    ) -> Result<QueryMap<'tcx>, QueryMap<'tcx>> {
-        let mut jobs = QueryMap::default();
-        let mut complete = true;
-
-        for gather_fn in crate::PER_QUERY_GATHER_ACTIVE_JOBS_FNS.iter() {
-            if gather_fn(self.tcx, &mut jobs, require_complete).is_none() {
-                complete = false;
-            }
-        }
-
-        if complete { Ok(jobs) } else { Err(jobs) }
-    }
-
-    // Interactions with on_disk_cache
-    fn load_side_effect(
-        self,
-        prev_dep_node_index: SerializedDepNodeIndex,
-    ) -> Option<QuerySideEffect> {
-        self.tcx
-            .query_system
-            .on_disk_cache
-            .as_ref()
-            .and_then(|c| c.load_side_effect(self.tcx, prev_dep_node_index))
-    }
-
-    #[inline(never)]
-    #[cold]
-    fn store_side_effect(self, dep_node_index: DepNodeIndex, side_effect: QuerySideEffect) {
-        if let Some(c) = self.tcx.query_system.on_disk_cache.as_ref() {
-            c.store_side_effect(dep_node_index, side_effect)
-        }
     }
 
     /// Executes a job by changing the `ImplicitCtxt` to point to the
     /// new query job while it executes.
     #[inline(always)]
-    fn start_query<R>(
+    pub(crate) fn start_query<R>(
         self,
         token: QueryJobId,
         depth_limit: bool,
@@ -177,6 +116,69 @@ impl<'tcx> QueryContext<'tcx> for QueryCtxt<'tcx> {
             // Use the `ImplicitCtxt` while we execute the query.
             tls::enter_context(&new_icx, compute)
         })
+    }
+
+    /// Returns a map of currently active query jobs, collected from all queries.
+    ///
+    /// If `require_complete` is `true`, this function locks all shards of the
+    /// query results to produce a complete map, which always returns `Ok`.
+    /// Otherwise, it may return an incomplete map as an error if any shard
+    /// lock cannot be acquired.
+    ///
+    /// Prefer passing `false` to `require_complete` to avoid potential deadlocks,
+    /// especially when called from within a deadlock handler, unless a
+    /// complete map is needed and no deadlock is possible at this call site.
+    pub fn collect_active_jobs_from_all_queries(
+        self,
+        require_complete: bool,
+    ) -> Result<QueryMap<'tcx>, QueryMap<'tcx>> {
+        let mut jobs = QueryMap::default();
+        let mut complete = true;
+
+        for gather_fn in crate::PER_QUERY_GATHER_ACTIVE_JOBS_FNS.iter() {
+            if gather_fn(self.tcx, &mut jobs, require_complete).is_none() {
+                complete = false;
+            }
+        }
+
+        if complete { Ok(jobs) } else { Err(jobs) }
+    }
+}
+
+impl<'tcx> HasDepContext for QueryCtxt<'tcx> {
+    type Deps = DepsType;
+    type DepContext = TyCtxt<'tcx>;
+
+    #[inline]
+    fn dep_context(&self) -> &Self::DepContext {
+        &self.tcx
+    }
+}
+
+impl<'tcx> QueryContext<'tcx> for QueryCtxt<'tcx> {
+    #[inline]
+    fn jobserver_proxy(&self) -> &Proxy {
+        &self.tcx.jobserver_proxy
+    }
+
+    // Interactions with on_disk_cache
+    fn load_side_effect(
+        self,
+        prev_dep_node_index: SerializedDepNodeIndex,
+    ) -> Option<QuerySideEffect> {
+        self.tcx
+            .query_system
+            .on_disk_cache
+            .as_ref()
+            .and_then(|c| c.load_side_effect(self.tcx, prev_dep_node_index))
+    }
+
+    #[inline(never)]
+    #[cold]
+    fn store_side_effect(self, dep_node_index: DepNodeIndex, side_effect: QuerySideEffect) {
+        if let Some(c) = self.tcx.query_system.on_disk_cache.as_ref() {
+            c.store_side_effect(dep_node_index, side_effect)
+        }
     }
 }
 
@@ -301,15 +303,31 @@ macro_rules! call_provider {
     };
 }
 
-macro_rules! should_ever_cache_on_disk {
-    ([]$yes:tt $no:tt) => {{
+/// Expands to one of two token trees, depending on whether the current query
+/// has the `cache_on_disk_if` modifier.
+macro_rules! if_cache_on_disk {
+    ([] $yes:tt $no:tt) => {
         $no
-    }};
-    ([(cache) $($rest:tt)*]$yes:tt $no:tt) => {{
+    };
+    // The `cache_on_disk_if` modifier generates a synthetic `(cache_on_disk)`,
+    // modifier, for use by this macro and similar macros.
+    ([(cache_on_disk) $($rest:tt)*] $yes:tt $no:tt) => {
         $yes
-    }};
-    ([$other:tt $($modifiers:tt)*]$yes:tt $no:tt) => {
-        should_ever_cache_on_disk!([$($modifiers)*]$yes $no)
+    };
+    ([$other:tt $($modifiers:tt)*] $yes:tt $no:tt) => {
+        if_cache_on_disk!([$($modifiers)*] $yes $no)
+    };
+}
+
+/// Conditionally expands to some token trees, if the current query has the
+/// `cache_on_disk_if` modifier.
+macro_rules! item_if_cache_on_disk {
+    ([] $($item:tt)*) => {};
+    ([(cache_on_disk) $($rest:tt)*] $($item:tt)*) => {
+        $($item)*
+    };
+    ([$other:tt $($modifiers:tt)*] $($item:tt)*) => {
+        item_if_cache_on_disk! { [$($modifiers)*] $($item)* }
     };
 }
 
@@ -358,7 +376,7 @@ pub(crate) fn create_deferred_query_stack_frame<'tcx, Cache>(
 ) -> QueryStackFrame<QueryStackDeferred<'tcx>>
 where
     Cache: QueryCache,
-    Cache::Key: Key + DynSend + DynSync + for<'a> HashStable<StableHashingContext<'a>> + 'tcx,
+    Cache::Key: Key + DynSend + DynSync,
 {
     let kind = vtable.dep_kind;
 
@@ -376,18 +394,18 @@ where
     QueryStackFrame::new(info, kind, hash, def_id, def_id_for_ty_in_cycle)
 }
 
-pub(crate) fn encode_query_results<'a, 'tcx, Q>(
-    query: Q::Dispatcher,
+pub(crate) fn encode_query_results<'a, 'tcx, Q, C: QueryCache, const FLAGS: QueryFlags>(
+    query: SemiDynamicQueryDispatcher<'tcx, C, FLAGS>,
     qcx: QueryCtxt<'tcx>,
     encoder: &mut CacheEncoder<'a, 'tcx>,
     query_result_index: &mut EncodedDepNodeIndex,
 ) where
-    Q: QueryDispatcherUnerased<'tcx>,
+    Q: QueryDispatcherUnerased<'tcx, C, FLAGS>,
     Q::UnerasedValue: Encodable<CacheEncoder<'a, 'tcx>>,
 {
     let _timer = qcx.tcx.prof.generic_activity_with_arg("encode_query_results_for", query.name());
 
-    assert!(query.query_state(qcx).all_inactive());
+    assert!(all_inactive(query.query_state(qcx)));
     let cache = query.query_cache(qcx);
     cache.iter(&mut |key, value, dep_node| {
         if query.will_cache_on_disk_for_key(qcx.tcx, key) {
@@ -403,8 +421,8 @@ pub(crate) fn encode_query_results<'a, 'tcx, Q>(
     });
 }
 
-pub(crate) fn query_key_hash_verify<'tcx>(
-    query: impl QueryDispatcher<'tcx, Qcx = QueryCtxt<'tcx>>,
+pub(crate) fn query_key_hash_verify<'tcx, C: QueryCache, const FLAGS: QueryFlags>(
+    query: SemiDynamicQueryDispatcher<'tcx, C, FLAGS>,
     qcx: QueryCtxt<'tcx>,
 ) {
     let _timer = qcx.tcx.prof.generic_activity_with_arg("query_key_hash_verify_for", query.name());
@@ -429,17 +447,20 @@ pub(crate) fn query_key_hash_verify<'tcx>(
     });
 }
 
-fn try_load_from_on_disk_cache<'tcx, Q>(query: Q, tcx: TyCtxt<'tcx>, dep_node: DepNode)
-where
-    Q: QueryDispatcher<'tcx, Qcx = QueryCtxt<'tcx>>,
-{
+fn try_load_from_on_disk_cache<'tcx, C: QueryCache, const FLAGS: QueryFlags>(
+    query: SemiDynamicQueryDispatcher<'tcx, C, FLAGS>,
+    tcx: TyCtxt<'tcx>,
+    dep_node: DepNode,
+) {
     debug_assert!(tcx.dep_graph.is_green(&dep_node));
 
-    let key = Q::Key::recover(tcx, &dep_node).unwrap_or_else(|| {
+    let key = C::Key::recover(tcx, &dep_node).unwrap_or_else(|| {
         panic!("Failed to recover key for {:?} with hash {}", dep_node, dep_node.hash)
     });
     if query.will_cache_on_disk_for_key(tcx, &key) {
-        let _ = query.execute_query(tcx, key);
+        // Call `tcx.$query(key)` for its side-effect of loading the disk-cached
+        // value into memory.
+        query.call_query_method(tcx, key);
     }
 }
 
@@ -475,10 +496,11 @@ where
     value
 }
 
-fn force_from_dep_node<'tcx, Q>(query: Q, tcx: TyCtxt<'tcx>, dep_node: DepNode) -> bool
-where
-    Q: QueryDispatcher<'tcx, Qcx = QueryCtxt<'tcx>>,
-{
+fn force_from_dep_node<'tcx, C: QueryCache, const FLAGS: QueryFlags>(
+    query: SemiDynamicQueryDispatcher<'tcx, C, FLAGS>,
+    tcx: TyCtxt<'tcx>,
+    dep_node: DepNode,
+) -> bool {
     // We must avoid ever having to call `force_from_dep_node()` for a
     // `DepNode::codegen_unit`:
     // Since we cannot reconstruct the query key of a `DepNode::codegen_unit`, we
@@ -497,7 +519,7 @@ where
         "calling force_from_dep_node() on dep_kinds::codegen_unit"
     );
 
-    if let Some(key) = Q::Key::recover(tcx, &dep_node) {
+    if let Some(key) = C::Key::recover(tcx, &dep_node) {
         force_query(query, QueryCtxt::new(tcx), key, dep_node);
         true
     } else {
@@ -505,17 +527,22 @@ where
     }
 }
 
-pub(crate) fn make_dep_kind_vtable_for_query<'tcx, Q>(
-    is_anon: bool,
+pub(crate) fn make_dep_kind_vtable_for_query<
+    'tcx,
+    Q,
+    C: QueryCache + 'tcx,
+    const FLAGS: QueryFlags,
+>(
     is_eval_always: bool,
 ) -> DepKindVTable<'tcx>
 where
-    Q: QueryDispatcherUnerased<'tcx>,
+    Q: QueryDispatcherUnerased<'tcx, C, FLAGS>,
 {
+    let is_anon = FLAGS.is_anon;
     let fingerprint_style = if is_anon {
         FingerprintStyle::Opaque
     } else {
-        <Q::Dispatcher as QueryDispatcher>::Key::fingerprint_style()
+        <C::Key as DepNodeKey<TyCtxt<'tcx>>>::fingerprint_style()
     };
 
     if is_anon || !fingerprint_style.reconstructible() {
@@ -541,28 +568,6 @@ where
         }),
         name: Q::NAME,
     }
-}
-
-macro_rules! item_if_cached {
-    ([] $tokens:tt) => {};
-    ([(cache) $($rest:tt)*] { $($tokens:tt)* }) => {
-        $($tokens)*
-    };
-    ([$other:tt $($modifiers:tt)*] $tokens:tt) => {
-        item_if_cached! { [$($modifiers)*] $tokens }
-    };
-}
-
-macro_rules! expand_if_cached {
-    ([], $tokens:expr) => {{
-        None
-    }};
-    ([(cache) $($rest:tt)*], $tokens:expr) => {{
-        Some($tokens)
-    }};
-    ([$other:tt $($modifiers:tt)*], $tokens:expr) => {
-        expand_if_cached!([$($modifiers)*], $tokens)
-    };
 }
 
 // NOTE: `$V` isn't used here, but we still need to match on it so it can be passed to other macros
@@ -594,7 +599,7 @@ macro_rules! define_queries {
                 ) -> Option<Erased<queries::$name::Value<'tcx>>> {
                     #[cfg(debug_assertions)]
                     let _guard = tracing::span!(tracing::Level::TRACE, stringify!($name), ?key).entered();
-                    get_query_incr(
+                    execution::get_query_incr(
                         QueryType::query_dispatcher(tcx),
                         QueryCtxt::new(tcx),
                         span,
@@ -614,7 +619,7 @@ macro_rules! define_queries {
                     key: queries::$name::Key<'tcx>,
                     __mode: QueryMode,
                 ) -> Option<Erased<queries::$name::Value<'tcx>>> {
-                    Some(get_query_non_incr(
+                    Some(execution::get_query_non_incr(
                         QueryType::query_dispatcher(tcx),
                         QueryCtxt::new(tcx),
                         span,
@@ -623,14 +628,15 @@ macro_rules! define_queries {
                 }
             }
 
-            /// Defines a `compute` function for this query, to be used as a
-            /// function pointer in the query's vtable.
-            mod compute_fn {
+            /// Defines an `invoke_provider` function that calls the query's provider,
+            /// to be used as a function pointer in the query's vtable.
+            ///
+            /// To mark a short-backtrace boundary, the function's actual name
+            /// (after demangling) must be `__rust_begin_short_backtrace`.
+            mod invoke_provider_fn {
                 use super::*;
                 use ::rustc_middle::queries::$name::{Key, Value, provided_to_erased};
 
-                /// This function would be named `compute`, but we also want it
-                /// to mark the boundaries of an omitted region in backtraces.
                 #[inline(never)]
                 pub(crate) fn __rust_begin_short_backtrace<'tcx>(
                     tcx: TyCtxt<'tcx>,
@@ -641,10 +647,13 @@ macro_rules! define_queries {
 
                     // Call the actual provider function for this query.
                     let provided_value = call_provider!([$($modifiers)*][tcx, $name, key]);
+
                     rustc_middle::ty::print::with_reduced_queries!({
                         tracing::trace!(?provided_value);
                     });
 
+                    // Erase the returned value, because `QueryVTable` uses erased values.
+                    // For queries with `arena_cache`, this also arena-allocates the value.
                     provided_to_erased(tcx, provided_value)
                 }
             }
@@ -659,17 +668,21 @@ macro_rules! define_queries {
                     cycle_error_handling: cycle_error_handling!([$($modifiers)*]),
                     query_state: std::mem::offset_of!(QueryStates<'tcx>, $name),
                     query_cache: std::mem::offset_of!(QueryCaches<'tcx>, $name),
-                    will_cache_on_disk_for_key_fn: should_ever_cache_on_disk!([$($modifiers)*] {
-                        Some(queries::cached::$name)
+                    will_cache_on_disk_for_key_fn: if_cache_on_disk!([$($modifiers)*] {
+                        Some(::rustc_middle::queries::_cache_on_disk_if_fns::$name)
                     } {
                         None
                     }),
-                    execute_query: |tcx, key| erase::erase_val(tcx.$name(key)),
-                    compute_fn: self::compute_fn::__rust_begin_short_backtrace,
-                    try_load_from_disk_fn: should_ever_cache_on_disk!([$($modifiers)*] {
+                    call_query_method_fn: |tcx, key| {
+                        // Call the query method for its side-effect of loading a value
+                        // from disk-cache; the caller doesn't need the value.
+                        let _ = tcx.$name(key);
+                    },
+                    invoke_provider_fn: self::invoke_provider_fn::__rust_begin_short_backtrace,
+                    try_load_from_disk_fn: if_cache_on_disk!([$($modifiers)*] {
                         Some(|tcx, key, prev_index, index| {
                             // Check the `cache_on_disk_if` condition for this key.
-                            if !queries::cached::$name(tcx, key) {
+                            if !::rustc_middle::queries::_cache_on_disk_if_fns::$name(tcx, key) {
                                 return None;
                             }
 
@@ -682,9 +695,9 @@ macro_rules! define_queries {
                     } {
                         None
                     }),
-                    is_loadable_from_disk_fn: should_ever_cache_on_disk!([$($modifiers)*] {
+                    is_loadable_from_disk_fn: if_cache_on_disk!([$($modifiers)*] {
                         Some(|tcx, key, index| -> bool {
-                            ::rustc_middle::queries::cached::$name(tcx, key) &&
+                            ::rustc_middle::queries::_cache_on_disk_if_fns::$name(tcx, key) &&
                                 $crate::plumbing::loadable_from_disk(tcx, index)
                         })
                     } {
@@ -711,25 +724,26 @@ macro_rules! define_queries {
                 is_feedable: feedable!([$($modifiers)*]),
             };
 
-            impl<'tcx> QueryDispatcherUnerased<'tcx> for QueryType<'tcx> {
+            impl<'tcx> QueryDispatcherUnerased<'tcx, queries::$name::Storage<'tcx>, FLAGS>
+                for QueryType<'tcx>
+            {
                 type UnerasedValue = queries::$name::Value<'tcx>;
-                type Dispatcher = SemiDynamicQueryDispatcher<
-                    'tcx,
-                    queries::$name::Storage<'tcx>,
-                    FLAGS,
-                >;
 
                 const NAME: &'static &'static str = &stringify!($name);
 
                 #[inline(always)]
-                fn query_dispatcher(tcx: TyCtxt<'tcx>) -> Self::Dispatcher {
+                fn query_dispatcher(tcx: TyCtxt<'tcx>)
+                    -> SemiDynamicQueryDispatcher<'tcx, queries::$name::Storage<'tcx>, FLAGS>
+                {
                     SemiDynamicQueryDispatcher {
                         vtable: &tcx.query_system.query_vtables.$name,
                     }
                 }
 
                 #[inline(always)]
-                fn restore_val(value: <Self::Dispatcher as QueryDispatcher<'tcx>>::Value) -> Self::UnerasedValue {
+                fn restore_val(value: <queries::$name::Storage<'tcx> as QueryCache>::Value)
+                    -> Self::UnerasedValue
+                {
                     erase::restore_val::<queries::$name::Value<'tcx>>(value)
                 }
             }
@@ -748,7 +762,7 @@ macro_rules! define_queries {
                 };
 
                 // Call `gather_active_jobs_inner` to do the actual work.
-                let res = tcx.query_system.states.$name.gather_active_jobs_inner(
+                let res = crate::execution::gather_active_jobs_inner(&tcx.query_system.states.$name,
                     tcx,
                     make_frame,
                     qmap,
@@ -779,20 +793,24 @@ macro_rules! define_queries {
                 )
             }
 
-            item_if_cached! { [$($modifiers)*] {
+            item_if_cache_on_disk! { [$($modifiers)*]
                 pub(crate) fn encode_query_results<'tcx>(
                     tcx: TyCtxt<'tcx>,
                     encoder: &mut CacheEncoder<'_, 'tcx>,
                     query_result_index: &mut EncodedDepNodeIndex
                 ) {
-                    $crate::plumbing::encode_query_results::<query_impl::$name::QueryType<'tcx>>(
+                    $crate::plumbing::encode_query_results::<
+                        query_impl::$name::QueryType<'tcx>,
+                        _,
+                        _
+                    > (
                         query_impl::$name::QueryType::query_dispatcher(tcx),
                         QueryCtxt::new(tcx),
                         encoder,
                         query_result_index,
                     )
                 }
-            }}
+            }
 
             pub(crate) fn query_key_hash_verify<'tcx>(tcx: TyCtxt<'tcx>) {
                 $crate::plumbing::query_key_hash_verify(
@@ -846,7 +864,15 @@ macro_rules! define_queries {
                 &mut CacheEncoder<'_, 'tcx>,
                 &mut EncodedDepNodeIndex)
             >
-        ] = &[$(expand_if_cached!([$($modifiers)*], query_impl::$name::encode_query_results)),*];
+        ] = &[
+            $(
+                if_cache_on_disk!([$($modifiers)*] {
+                    Some(query_impl::$name::encode_query_results)
+                } {
+                    None
+                })
+            ),*
+        ];
 
         const QUERY_KEY_HASH_VERIFY: &[
             for<'tcx> fn(TyCtxt<'tcx>)
@@ -957,8 +983,7 @@ macro_rules! define_queries {
 
             $(pub(crate) fn $name<'tcx>() -> DepKindVTable<'tcx> {
                 use $crate::query_impl::$name::QueryType;
-                $crate::plumbing::make_dep_kind_vtable_for_query::<QueryType<'tcx>>(
-                    is_anon!([$($modifiers)*]),
+                $crate::plumbing::make_dep_kind_vtable_for_query::<QueryType<'tcx>, _, _>(
                     is_eval_always!([$($modifiers)*]),
                 )
             })*

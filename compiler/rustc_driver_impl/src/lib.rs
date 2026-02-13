@@ -112,18 +112,8 @@ use crate::session_diagnostics::{
 use crate::script_mode::{get_script_output_path, has_shebang};
 
 pub fn default_translator() -> Translator {
-    Translator::with_fallback_bundle(DEFAULT_LOCALE_RESOURCES.to_vec(), false)
+    Translator::new()
 }
-
-pub static DEFAULT_LOCALE_RESOURCES: &[&str] = &[
-    // tidy-alphabetical-start
-    rustc_const_eval::DEFAULT_LOCALE_RESOURCE,
-    rustc_lint::DEFAULT_LOCALE_RESOURCE,
-    rustc_mir_build::DEFAULT_LOCALE_RESOURCE,
-    rustc_parse::DEFAULT_LOCALE_RESOURCE,
-    rustc_passes::DEFAULT_LOCALE_RESOURCE,
-    // tidy-alphabetical-end
-];
 
 /// Exit status code used for successful compilation and help output.
 pub const EXIT_SUCCESS: i32 = 0;
@@ -244,7 +234,6 @@ pub fn run_compiler(at_args: &[String], callbacks: &mut (dyn Callbacks + Send)) 
         output_dir: odir,
         ice_file,
         file_loader: None,
-        locale_resources: DEFAULT_LOCALE_RESOURCES.to_vec(),
         lint_caps: Default::default(),
         psess_created: None,
         hash_untracked_state: None,
@@ -557,7 +546,7 @@ fn show_md_content_with_pager(content: &str, color: ColorConfig) {
     };
 
     // Try to print via the pager, pretty output if possible.
-    let pager_res: Option<()> = try {
+    let pager_res = try {
         let mut pager = cmd.stdin(Stdio::piped()).spawn().ok()?;
 
         let pager_stdin = pager.stdin.as_mut()?;
@@ -1582,7 +1571,7 @@ fn report_ice(
     extra_info: fn(&DiagCtxt),
     using_internal_features: &AtomicBool,
 ) {
-    let translator = default_translator();
+    let translator = Translator::new();
     let emitter =
         Box::new(rustc_errors::annotate_snippet_emitter_writer::AnnotateSnippetEmitter::new(
             stderr_destination(rustc_errors::ColorConfig::Auto),

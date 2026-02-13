@@ -824,25 +824,26 @@ impl<'a> Parser<'a> {
                         );
 
                         let args_span = self.look_ahead(1, |t| t.span).to(span_after_type);
-                        let suggestion = errors::ComparisonOrShiftInterpretedAsGenericSugg {
-                            left: expr.span.shrink_to_lo(),
-                            right: expr.span.shrink_to_hi(),
-                        };
-
                         match self.token.kind {
                             token::Lt => {
                                 self.dcx().emit_err(errors::ComparisonInterpretedAsGeneric {
                                     comparison: self.token.span,
                                     r#type: path,
                                     args: args_span,
-                                    suggestion,
+                                    suggestion: errors::ComparisonInterpretedAsGenericSugg {
+                                        left: expr.span.shrink_to_lo(),
+                                        right: expr.span.shrink_to_hi(),
+                                    },
                                 })
                             }
                             token::Shl => self.dcx().emit_err(errors::ShiftInterpretedAsGeneric {
                                 shift: self.token.span,
                                 r#type: path,
                                 args: args_span,
-                                suggestion,
+                                suggestion: errors::ShiftInterpretedAsGenericSugg {
+                                    left: expr.span.shrink_to_lo(),
+                                    right: expr.span.shrink_to_hi(),
+                                },
                             }),
                             _ => {
                                 // We can end up here even without `<` being the next token, for
@@ -2338,16 +2339,8 @@ impl<'a> Parser<'a> {
             let first_expr = self.parse_expr()?;
             if self.eat(exp!(Semi)) {
                 // Repeating array syntax: `[ 0; 512 ]`
-                let count = if self.eat_keyword(exp!(Const)) {
-                    // While we could just disambiguate `Direct` from `AnonConst` by
-                    // treating all const block exprs as `AnonConst`, that would
-                    // complicate the DefCollector and likely all other visitors.
-                    // So we strip the const blockiness and just store it as a block
-                    // in the AST with the extra disambiguator on the AnonConst
-                    self.parse_mgca_const_block(false)?
-                } else {
-                    self.parse_expr_anon_const(|this, expr| this.mgca_direct_lit_hack(expr))?
-                };
+                let count =
+                    self.parse_expr_anon_const(|this, expr| this.mgca_direct_lit_hack(expr))?;
                 self.expect(close)?;
                 ExprKind::Repeat(first_expr, count)
             } else if self.eat(exp!(Comma)) {
@@ -5794,7 +5787,52 @@ impl MutVisitor for CondChecker<'_> {
                 mut_visit::walk_expr(self, e);
                 self.forbid_let_reason = forbid_let_reason;
             }
-            ExprKind::Assign(ref lhs, _, span) => {
+            ExprKind::Assign(ref lhs, ref rhs, span) => {
+                if let ExprKind::Call(_, _) = &lhs.kind {
+                    fn get_path_from_rhs(e: &Expr) -> Option<(u32, &Path)> {
+                        fn inner(e: &Expr, depth: u32) -> Option<(u32, &Path)> {
+                            match &e.kind {
+                                ExprKind::Binary(_, lhs, _) => inner(lhs, depth + 1),
+                                ExprKind::Path(_, path) => Some((depth, path)),
+                                _ => None,
+                            }
+                        }
+
+                        inner(e, 0)
+                    }
+
+                    if let Some((depth, path)) = get_path_from_rhs(rhs) {
+                        // For cases like if Some(_) = x && let Some(_) = y && let Some(_) = z
+                        // This return let Some(_) = y expression
+                        fn find_let_some(expr: &Expr) -> Option<&Expr> {
+                            match &expr.kind {
+                                ExprKind::Let(..) => Some(expr),
+
+                                ExprKind::Binary(op, lhs, rhs) if op.node == BinOpKind::And => {
+                                    find_let_some(lhs).or_else(|| find_let_some(rhs))
+                                }
+
+                                _ => None,
+                            }
+                        }
+
+                        let expr_span = lhs.span.to(path.span);
+
+                        if let Some(later_rhs) = find_let_some(rhs)
+                            && depth > 0
+                        {
+                            let guar = self.parser.dcx().emit_err(errors::LetChainMissingLet {
+                                span: lhs.span,
+                                label_span: expr_span,
+                                rhs_span: later_rhs.span,
+                                sug_span: lhs.span.shrink_to_lo(),
+                            });
+
+                            self.found_incorrect_let_chain = Some(guar);
+                        }
+                    }
+                }
+
                 let forbid_let_reason = self.forbid_let_reason;
                 self.forbid_let_reason = Some(errors::ForbiddenLetReason::OtherForbidden);
                 let missing_let = self.missing_let;

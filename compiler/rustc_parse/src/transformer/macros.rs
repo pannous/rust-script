@@ -1080,7 +1080,7 @@ fn build_math_constants(def_site: Span, call_site: Span) -> ThinVec<Box<ast::Ite
                 ident: Ident::new(name, call_site),
                 generics: ast::Generics::default(),
                 ty: const_ty,
-                rhs: Some(ast::ConstItemRhs::Body(const_expr)),
+                rhs_kind: ast::ConstItemRhsKind::new_body(const_expr),
                 define_opaque: None,
             })),
             vis: ast::Visibility { span: def_site, kind: ast::VisibilityKind::Inherited, tokens: None },

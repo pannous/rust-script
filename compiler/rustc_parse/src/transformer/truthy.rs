@@ -133,7 +133,7 @@ fn build_truthy_trait_items(span: Span) -> ThinVec<Box<ast::AssocItem>> {
     };
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(sym::is_truthy, span),
         generics: ast::Generics::default(),
         sig: fn_sig,
@@ -631,7 +631,7 @@ fn build_truthy_impl_with_ty(
     });
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(sym::is_truthy, call_site),
         generics: ast::Generics::default(),
         sig: fn_sig,
@@ -654,7 +654,7 @@ fn build_truthy_impl_with_ty(
         generics: ast::Generics::default(),
         constness: ast::Const::No,
         of_trait: Some(Box::new(ast::TraitImplHeader {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             safety: ast::Safety::Default,
             polarity: ast::ImplPolarity::Positive,
             trait_ref: ast::TraitRef { path: trait_path.clone(), ref_id: ast::DUMMY_NODE_ID },
@@ -742,7 +742,7 @@ fn build_truthy_impl_with_ty_and_generics(
     });
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(sym::is_truthy, call_site),
         generics: ast::Generics::default(),
         sig: fn_sig,
@@ -765,7 +765,7 @@ fn build_truthy_impl_with_ty_and_generics(
         generics,  // Use the provided generics
         constness: ast::Const::No,
         of_trait: Some(Box::new(ast::TraitImplHeader {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             safety: ast::Safety::Default,
             polarity: ast::ImplPolarity::Positive,
             trait_ref: ast::TraitRef { path: trait_path.clone(), ref_id: ast::DUMMY_NODE_ID },

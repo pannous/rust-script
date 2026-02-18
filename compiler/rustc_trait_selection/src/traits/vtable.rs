@@ -12,7 +12,7 @@ use rustc_span::DUMMY_SP;
 use smallvec::{SmallVec, smallvec};
 use tracing::debug;
 
-use crate::traits::is_vtable_safe_method;
+use crate::traits::{impossible_predicates, is_vtable_safe_method};
 
 #[derive(Clone, Debug)]
 pub enum VtblSegment<'tcx> {
@@ -210,6 +210,11 @@ fn own_existential_vtable_entries_iter(
         debug!("own_existential_vtable_entry: trait_method={:?}", trait_method);
         let def_id = trait_method.def_id;
 
+        // Final methods should not be included in the vtable.
+        if trait_method.defaultness(tcx).is_final() {
+            return None;
+        }
+
         // Some methods cannot be called on an object; skip those.
         if !is_vtable_safe_method(tcx, trait_def_id, trait_method) {
             debug!("own_existential_vtable_entry: not vtable safe");
@@ -271,7 +276,11 @@ fn vtable_entries<'tcx>(
                     // do not hold for this particular set of type parameters.
                     // Note that this method could then never be called, so we
                     // do not want to try and codegen it, in that case (see #23435).
-                    if tcx.instantiate_and_check_impossible_predicates((def_id, args)) {
+                    let predicates = tcx.predicates_of(def_id).instantiate_own(tcx, args);
+                    if impossible_predicates(
+                        tcx,
+                        predicates.map(|(predicate, _)| predicate).collect(),
+                    ) {
                         debug!("vtable_entries: predicates do not hold");
                         return VtblEntry::Vacant;
                     }
@@ -430,7 +439,16 @@ pub(crate) fn supertrait_vtable_slot<'tcx>(
         }
     };
 
-    prepare_vtable_segments(tcx, source_principal, vtable_segment_callback).unwrap()
+    prepare_vtable_segments(tcx, source_principal, vtable_segment_callback).unwrap_or_else(|| {
+        // This can happen if the trait hierarchy is malformed (e.g., due to
+        // missing generics on a supertrait bound). There should already be an error
+        // emitted for this, so we just delay the ICE.
+        tcx.dcx().delayed_bug(format!(
+            "could not find the supertrait vtable slot for `{}` -> `{}`",
+            source, target
+        ));
+        None
+    })
 }
 
 pub(super) fn provide(providers: &mut Providers) {

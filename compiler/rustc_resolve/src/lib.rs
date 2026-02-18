@@ -15,7 +15,6 @@
 #![feature(const_default)]
 #![feature(const_trait_impl)]
 #![feature(control_flow_into_value)]
-#![feature(decl_macro)]
 #![feature(default_field_values)]
 #![feature(if_let_guard)]
 #![feature(iter_intersperse)]
@@ -281,10 +280,11 @@ enum ResolutionError<'ra> {
     SelfImportOnlyInImportListWithNonEmptyPrefix,
     /// Error E0433: failed to resolve.
     FailedToResolve {
-        segment: Option<Symbol>,
+        segment: Symbol,
         label: String,
         suggestion: Option<Suggestion>,
         module: Option<ModuleOrUniformRoot<'ra>>,
+        message: String,
     },
     /// Error E0434: can't capture dynamic environment in a fn item.
     CannotCaptureDynamicEnvironmentInFnItem,
@@ -343,7 +343,7 @@ enum ResolutionError<'ra> {
 enum VisResolutionError<'a> {
     Relative2018(Span, &'a ast::Path),
     AncestorOnly(Span),
-    FailedToResolve(Span, String, Option<Suggestion>),
+    FailedToResolve(Span, Symbol, String, Option<Suggestion>, String),
     ExpectedFound(Span, String, Res),
     Indeterminate(Span),
     ModuleOnly(Span),
@@ -487,6 +487,7 @@ enum PathResult<'ra> {
         /// The segment name of target
         segment_name: Symbol,
         error_implied_by_parse_error: bool,
+        message: String,
     },
 }
 
@@ -497,10 +498,14 @@ impl<'ra> PathResult<'ra> {
         finalize: bool,
         error_implied_by_parse_error: bool,
         module: Option<ModuleOrUniformRoot<'ra>>,
-        label_and_suggestion: impl FnOnce() -> (String, Option<Suggestion>),
+        label_and_suggestion: impl FnOnce() -> (String, String, Option<Suggestion>),
     ) -> PathResult<'ra> {
-        let (label, suggestion) =
-            if finalize { label_and_suggestion() } else { (String::new(), None) };
+        let (message, label, suggestion) = if finalize {
+            label_and_suggestion()
+        } else {
+            // FIXME: this output isn't actually present in the test suite.
+            (format!("cannot find `{ident}` in this scope"), String::new(), None)
+        };
         PathResult::Failed {
             span: ident.span,
             segment_name: ident.name,
@@ -509,6 +514,7 @@ impl<'ra> PathResult<'ra> {
             is_error_from_last_segment,
             module,
             error_implied_by_parse_error,
+            message,
         }
     }
 }
@@ -1338,6 +1344,8 @@ pub struct Resolver<'ra, 'tcx> {
 
     /// Amount of lifetime parameters for each item in the crate.
     item_generics_num_lifetimes: FxHashMap<LocalDefId, usize> = default::fx_hash_map(),
+    /// Generic args to suggest for required params (e.g. `<'_>`, `<_, _>`), if any.
+    item_required_generic_args_suggestions: FxHashMap<LocalDefId, String> = default::fx_hash_map(),
     delegation_fn_sigs: LocalDefIdMap<DelegationFnSig> = Default::default(),
     delegation_infos: LocalDefIdMap<DelegationInfo> = Default::default(),
 
@@ -1553,6 +1561,32 @@ impl<'tcx> Resolver<'_, 'tcx> {
             self.item_generics_num_lifetimes[&def_id]
         } else {
             self.tcx.generics_of(def_id).own_counts().lifetimes
+        }
+    }
+
+    fn item_required_generic_args_suggestion(&self, def_id: DefId) -> String {
+        if let Some(def_id) = def_id.as_local() {
+            self.item_required_generic_args_suggestions.get(&def_id).cloned().unwrap_or_default()
+        } else {
+            let required = self
+                .tcx
+                .generics_of(def_id)
+                .own_params
+                .iter()
+                .filter_map(|param| match param.kind {
+                    ty::GenericParamDefKind::Lifetime => Some("'_"),
+                    ty::GenericParamDefKind::Type { has_default, .. }
+                    | ty::GenericParamDefKind::Const { has_default } => {
+                        if has_default {
+                            None
+                        } else {
+                            Some("_")
+                        }
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            if required.is_empty() { String::new() } else { format!("<{}>", required.join(", ")) }
         }
     }
 

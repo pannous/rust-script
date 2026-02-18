@@ -61,6 +61,29 @@ pub(crate) enum ItemId {
     Blanket { impl_id: DefId, for_: DefId },
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(crate) enum Defaultness {
+    Implicit,
+    Default,
+    Final,
+}
+
+impl Defaultness {
+    pub(crate) fn from_trait_item(defaultness: hir::Defaultness) -> Self {
+        match defaultness {
+            hir::Defaultness::Default { .. } => Self::Implicit,
+            hir::Defaultness::Final => Self::Final,
+        }
+    }
+
+    pub(crate) fn from_impl_item(defaultness: hir::Defaultness) -> Self {
+        match defaultness {
+            hir::Defaultness::Default { .. } => Self::Default,
+            hir::Defaultness::Final => Self::Implicit,
+        }
+    }
+}
+
 impl ItemId {
     #[inline]
     pub(crate) fn is_local(self) -> bool {
@@ -431,6 +454,10 @@ impl Item {
         self.deprecation(tcx).is_some_and(|deprecation| deprecation.is_in_effect())
     }
 
+    pub(crate) fn is_unstable(&self) -> bool {
+        self.stability.is_some_and(|x| x.is_unstable())
+    }
+
     pub(crate) fn inner_docs(&self, tcx: TyCtxt<'_>) -> bool {
         self.item_id.as_def_id().map(|did| inner_docs(tcx.get_all_attrs(did))).unwrap_or(false)
     }
@@ -703,12 +730,12 @@ impl Item {
         ItemType::from(self)
     }
 
-    pub(crate) fn is_default(&self) -> bool {
+    pub(crate) fn defaultness(&self) -> Option<Defaultness> {
         match self.kind {
-            ItemKind::MethodItem(_, Some(defaultness)) => {
-                defaultness.has_value() && !defaultness.is_final()
+            ItemKind::MethodItem(_, defaultness) | ItemKind::RequiredMethodItem(_, defaultness) => {
+                Some(defaultness)
             }
-            _ => false,
+            _ => None,
         }
     }
 
@@ -770,8 +797,8 @@ impl Item {
                 }
             }
             ItemKind::FunctionItem(_)
-            | ItemKind::MethodItem(_, _)
-            | ItemKind::RequiredMethodItem(_) => {
+            | ItemKind::MethodItem(..)
+            | ItemKind::RequiredMethodItem(..) => {
                 let def_id = self.def_id().unwrap();
                 build_fn_header(def_id, tcx, tcx.asyncness(def_id))
             }
@@ -855,11 +882,11 @@ pub(crate) enum ItemKind {
     TraitAliasItem(TraitAlias),
     ImplItem(Box<Impl>),
     /// A required method in a trait declaration meaning it's only a function signature.
-    RequiredMethodItem(Box<Function>),
+    RequiredMethodItem(Box<Function>, Defaultness),
     /// A method in a trait impl or a provided method in a trait declaration.
     ///
     /// Compared to [RequiredMethodItem], it also contains a method body.
-    MethodItem(Box<Function>, Option<hir::Defaultness>),
+    MethodItem(Box<Function>, Defaultness),
     StructFieldItem(Type),
     VariantItem(Variant),
     /// `fn`s from an extern block
@@ -917,8 +944,8 @@ impl ItemKind {
             | StaticItem(_)
             | ConstantItem(_)
             | TraitAliasItem(_)
-            | RequiredMethodItem(_)
-            | MethodItem(_, _)
+            | RequiredMethodItem(..)
+            | MethodItem(..)
             | StructFieldItem(_)
             | ForeignFunctionItem(_, _)
             | ForeignStaticItem(_, _)

@@ -11,8 +11,8 @@ use rustc_data_structures::fx::{FxHashMap, FxHashSet};
 use rustc_data_structures::unord::UnordSet;
 use rustc_errors::codes::*;
 use rustc_errors::{
-    Applicability, Diag, ErrorGuaranteed, Level, MultiSpan, StashKey, StringPart, Suggestions,
-    inline_fluent, pluralize, struct_span_code_err,
+    Applicability, Diag, ErrorGuaranteed, Level, MultiSpan, StashKey, StringPart, Suggestions, msg,
+    pluralize, struct_span_code_err,
 };
 use rustc_hir::def_id::{DefId, LOCAL_CRATE, LocalDefId};
 use rustc_hir::intravisit::Visitor;
@@ -282,22 +282,30 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                         if self.tcx.is_diagnostic_item(sym::From, trait_def_id)
                             || self.tcx.is_diagnostic_item(sym::TryFrom, trait_def_id)
                         {
-                            let found_ty = leaf_trait_predicate.skip_binder().trait_ref.args.type_at(1);
-                            let ty = main_trait_predicate.skip_binder().self_ty();
-                            if let Some(cast_ty) = self.find_explicit_cast_type(
-                                obligation.param_env,
-                                found_ty,
-                                ty,
-                            ) {
-                                let found_ty_str = self.tcx.short_string(found_ty, &mut long_ty_file);
-                                let cast_ty_str = self.tcx.short_string(cast_ty, &mut long_ty_file);
-                                err.help(
-                                    format!(
+                            let trait_ref = leaf_trait_predicate.skip_binder().trait_ref;
+
+                            // Defensive: next-solver may produce fewer args than expected.
+                            if trait_ref.args.len() > 1 {
+                                let found_ty = trait_ref.args.type_at(1);
+                                let ty = main_trait_predicate.skip_binder().self_ty();
+
+                                if let Some(cast_ty) = self.find_explicit_cast_type(
+                                    obligation.param_env,
+                                    found_ty,
+                                    ty,
+                                ) {
+                                    let found_ty_str =
+                                        self.tcx.short_string(found_ty, &mut long_ty_file);
+                                    let cast_ty_str =
+                                        self.tcx.short_string(cast_ty, &mut long_ty_file);
+
+                                    err.help(format!(
                                         "consider casting the `{found_ty_str}` value to `{cast_ty_str}`",
-                                    ),
-                                );
+                                    ));
+                                }
                             }
                         }
+
 
                         *err.long_ty_path() = long_ty_file;
 
@@ -3088,7 +3096,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
         {
             err.span_help(
                 self.tcx.def_span(trait_def_id),
-                inline_fluent!("this trait has no implementations, consider adding one"),
+                msg!("this trait has no implementations, consider adding one"),
             );
         } else if !suggested && trait_predicate.polarity() == ty::PredicatePolarity::Positive {
             // Can't show anything else useful, try to find similar impls.

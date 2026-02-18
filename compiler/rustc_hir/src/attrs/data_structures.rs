@@ -8,6 +8,7 @@ use rustc_ast::token::DocFragmentKind;
 use rustc_ast::{AttrStyle, Path, ast};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_error_messages::{DiagArgValue, IntoDiagArg};
+use rustc_hir::LangItem;
 use rustc_macros::{Decodable, Encodable, HashStable_Generic, PrintAttribute};
 use rustc_span::def_id::DefId;
 use rustc_span::hygiene::Transparency;
@@ -896,6 +897,9 @@ pub enum AttributeKind {
     /// Represents `#[debugger_visualizer]`.
     DebuggerVisualizer(ThinVec<DebugVisualizer>),
 
+    /// Represents `#![default_lib_allocator]`
+    DefaultLibAllocator,
+
     /// Represents [`#[deprecated]`](https://doc.rust-lang.org/stable/reference/attributes/diagnostics.html#the-deprecated-attribute).
     Deprecation { deprecation: Deprecation, span: Span },
 
@@ -962,6 +966,9 @@ pub enum AttributeKind {
 
     /// Represents `#[instruction_set]`
     InstructionSet(InstructionSetAttr),
+
+    /// Represents `#[lang]`
+    Lang(LangItem, Span),
 
     /// Represents `#[link]`.
     Link(ThinVec<LinkEntry>, Span),
@@ -1063,6 +1070,9 @@ pub enum AttributeKind {
     /// Represents `#[pointee]`
     Pointee(Span),
 
+    /// Represents `#[prelude_import]`
+    PreludeImport,
+
     /// Represents `#[proc_macro]`
     ProcMacro(Span),
 
@@ -1162,6 +1172,12 @@ pub enum AttributeKind {
 
     /// Represents `#[rustc_deprecated_safe_2024]`
     RustcDeprecatedSafe2024 { suggestion: Symbol },
+
+    /// Represents `#[rustc_diagnostic_item]`
+    RustcDiagnosticItem(Symbol),
+
+    /// Represents `#[rustc_do_not_const_check]`
+    RustcDoNotConstCheck,
 
     /// Represents `#[rustc_dummy]`.
     RustcDummy,
@@ -1265,6 +1281,9 @@ pub enum AttributeKind {
     /// Represents `#[rustc_non_const_trait_method]`.
     RustcNonConstTraitMethod,
 
+    /// Represents `#[rustc_nonnull_optimization_guaranteed]`.
+    RustcNonnullOptimizationGuaranteed,
+
     /// Represents `#[rustc_nounwind]`
     RustcNounwind,
 
@@ -1294,6 +1313,9 @@ pub enum AttributeKind {
 
     /// Represents `#[rustc_preserve_ub_checks]`
     RustcPreserveUbChecks,
+
+    /// Represents `#[rustc_proc_macro_decls]`
+    RustcProcMacroDecls,
 
     /// Represents `#[rustc_pub_transparent]` (used by the `repr_transparent_external_private_fields` lint).
     RustcPubTransparent(Span),
@@ -1335,6 +1357,9 @@ pub enum AttributeKind {
 
     /// Represents `#[rustc_symbol_name]`
     RustcSymbolName(Span),
+
+    /// Represents `#[rustc_test_marker]`
+    RustcTestMarker(Symbol),
 
     /// Represents `#[rustc_then_this_would_need]`
     RustcThenThisWouldNeed(Span, ThinVec<Ident>),

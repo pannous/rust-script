@@ -8,6 +8,7 @@ edition = "2024"
 bitflags = "2.4.1"
 either = "1.5.0"
 gsgdt = "0.1.2"
+parking_lot = "0.12"
 polonius-engine = "0.13.0"
 rustc_abi = { path = "../rustc_abi" }
 rustc_apfloat = "0.2.0"
@@ -25,7 +26,6 @@ rustc_hir_pretty = { path = "../rustc_hir_pretty" }
 rustc_index = { path = "../rustc_index" }
 rustc_lint_defs = { path = "../rustc_lint_defs" }
 rustc_macros = { path = "../rustc_macros" }
-rustc_query_system = { path = "../rustc_query_system" }
 rustc_serialize = { path = "../rustc_serialize" }
 rustc_session = { path = "../rustc_session" }
 rustc_span = { path = "../rustc_span" }

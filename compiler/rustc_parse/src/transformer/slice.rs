@@ -243,7 +243,7 @@ fn build_map_trait_item(
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(method_name, span),
             generics: method_generics,
             sig: fn_sig,
@@ -402,7 +402,7 @@ fn build_filter_trait_item(
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(method_name, span),
             generics: method_generics,
             sig: fn_sig,
@@ -475,7 +475,7 @@ fn build_first_cloned_trait_item(span: Span, t_ident: Ident) -> Box<ast::AssocIt
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(sym::first_cloned, span),
             generics: method_generics,
             sig: fn_sig,
@@ -548,7 +548,7 @@ fn build_shift_slice_trait_item(span: Span, t_ident: Ident) -> Box<ast::AssocIte
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(sym::shift, span),
             generics: method_generics,
             sig: fn_sig,
@@ -635,7 +635,7 @@ fn build_pairs_trait_item(span: Span, t_ident: Ident) -> Box<ast::AssocItem> {
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(sym::pairs, span),
             generics: method_generics,
             sig: fn_sig,
@@ -770,7 +770,7 @@ fn build_blanket_impl(
         generics: impl_generics,
         constness: ast::Const::No,
         of_trait: Some(Box::new(ast::TraitImplHeader {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             safety: ast::Safety::Default,
             polarity: ast::ImplPolarity::Positive,
             trait_ref: ast::TraitRef { path: trait_path, ref_id: ast::DUMMY_NODE_ID },
@@ -926,7 +926,7 @@ fn build_map_impl_item(
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(method_name, span),
             generics: method_generics,
             sig: fn_sig,
@@ -1085,7 +1085,7 @@ fn build_filter_impl_item(
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(method_name, span),
             generics: method_generics,
             sig: fn_sig,
@@ -1160,7 +1160,7 @@ fn build_first_cloned_impl_item(span: Span, t_ident: Ident) -> Box<ast::AssocIte
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(sym::first_cloned, span),
             generics: method_generics,
             sig: fn_sig,
@@ -1235,7 +1235,7 @@ fn build_shift_slice_impl_item(span: Span, t_ident: Ident) -> Box<ast::AssocItem
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(sym::shift, span),
             generics: method_generics,
             sig: fn_sig,
@@ -1324,7 +1324,7 @@ fn build_pairs_impl_item(span: Span, t_ident: Ident) -> Box<ast::AssocItem> {
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(sym::pairs, span),
             generics: method_generics,
             sig: fn_sig,
@@ -1927,7 +1927,7 @@ pub fn build_slice_eq_function(def_site: Span, call_site: Span) -> Box<ast::Item
         attrs: vec![allow_dead_code].into(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::ItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             sig: fn_sig,
             ident: Ident::new(sym::slice_eq, call_site),
             generics: fn_generics,
@@ -2066,7 +2066,7 @@ fn build_shift_trait_item(span: Span, t_ident: Ident) -> Box<ast::AssocItem> {
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(sym::shift, span),
             generics: method_generics,
             sig: fn_sig,
@@ -2139,7 +2139,7 @@ fn build_sort_desc_trait_item(span: Span, t_ident: Ident) -> Box<ast::AssocItem>
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(sym::sortDesc, span),
             generics: method_generics,
             sig: fn_sig,
@@ -2261,7 +2261,7 @@ fn build_vec_impl(
         generics: impl_generics,
         constness: ast::Const::No,
         of_trait: Some(Box::new(ast::TraitImplHeader {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             safety: ast::Safety::Default,
             polarity: ast::ImplPolarity::Positive,
             trait_ref: ast::TraitRef { path: trait_path, ref_id: ast::DUMMY_NODE_ID },
@@ -2341,7 +2341,7 @@ fn build_shift_impl_item(span: Span) -> Box<ast::AssocItem> {
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(sym::shift, span),
             generics: method_generics,
             sig: fn_sig,
@@ -2417,7 +2417,7 @@ fn build_sort_desc_impl_item(span: Span) -> Box<ast::AssocItem> {
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(sym::sortDesc, span),
             generics: method_generics,
             sig: fn_sig,

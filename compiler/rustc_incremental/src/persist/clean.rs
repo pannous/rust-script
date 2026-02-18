@@ -27,7 +27,7 @@ use rustc_hir::{
     Attribute, ImplItemKind, ItemKind as HirItem, Node as HirNode, TraitItemKind, find_attr,
     intravisit,
 };
-use rustc_middle::dep_graph::{DepNode, DepNodeExt, dep_kind_from_label, label_strs};
+use rustc_middle::dep_graph::{DepNode, dep_kind_from_label, label_strs};
 use rustc_middle::hir::nested_filter;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
@@ -322,7 +322,7 @@ impl<'tcx> CleanVisitor<'tcx> {
         if let Some(def_id) = dep_node.extract_def_id(self.tcx) {
             format!("{:?}({})", dep_node.kind, self.tcx.def_path_str(def_id))
         } else {
-            format!("{:?}({:?})", dep_node.kind, dep_node.hash)
+            format!("{:?}({:?})", dep_node.kind, dep_node.key_fingerprint)
         }
     }
 

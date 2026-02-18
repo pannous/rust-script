@@ -18,6 +18,7 @@ use rustc_data_structures::sync;
 use rustc_metadata::{DylibError, EncodedMetadata, load_symbol_from_dylib};
 use rustc_middle::dep_graph::{WorkProduct, WorkProductId};
 use rustc_middle::ty::{CurrentGcx, TyCtxt};
+use rustc_query_impl::collect_active_jobs_from_all_queries;
 use rustc_session::config::{
     Cfg, CrateType, OutFileName, OutputFilenames, OutputTypes, Sysroot, host_tuple,
 };
@@ -184,7 +185,7 @@ pub(crate) fn run_in_thread_pool_with_globals<
     use rustc_data_structures::defer;
     use rustc_data_structures::sync::FromDyn;
     use rustc_middle::ty::tls;
-    use rustc_query_impl::{QueryCtxt, break_query_cycles};
+    use rustc_query_impl::break_query_cycles;
 
     let thread_stack_size = init_stack_size(thread_builder_diag);
 
@@ -248,17 +249,17 @@ internal compiler error: query cycle handler thread panicked, aborting process";
                             tls::with(|tcx| {
                                 // Accessing session globals is sound as they outlive `GlobalCtxt`.
                                 // They are needed to hash query keys containing spans or symbols.
-                                let query_map = rustc_span::set_session_globals_then(
+                                let job_map = rustc_span::set_session_globals_then(
                                     unsafe { &*(session_globals as *const SessionGlobals) },
                                     || {
                                         // Ensure there were no errors collecting all active jobs.
                                         // We need the complete map to ensure we find a cycle to break.
-                                        QueryCtxt::new(tcx).collect_active_jobs_from_all_queries(false).expect(
+                                        collect_active_jobs_from_all_queries(tcx, false).expect(
                                             "failed to collect active queries in deadlock handler",
                                         )
                                     },
                                 );
-                                break_query_cycles(query_map, &registry);
+                                break_query_cycles(job_map, &registry);
                             })
                         })
                     });

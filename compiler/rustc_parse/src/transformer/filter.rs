@@ -271,7 +271,7 @@ fn build_slice_filter_trait_item(span: Span, t_ident: Ident) -> Box<ast::AssocIt
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(sym::filter, span),
             generics: method_generics,
             sig: fn_sig,
@@ -352,7 +352,7 @@ fn build_slice_ext_impl(
         generics: impl_generics,
         constness: ast::Const::No,
         of_trait: Some(Box::new(ast::TraitImplHeader {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             safety: ast::Safety::Default,
             polarity: ast::ImplPolarity::Positive,
             trait_ref: ast::TraitRef { path: trait_path, ref_id: ast::DUMMY_NODE_ID },
@@ -545,7 +545,7 @@ fn build_slice_filter_impl_item(span: Span, t_ident: Ident) -> Box<ast::AssocIte
         attrs: ThinVec::new(),
         id: ast::DUMMY_NODE_ID,
         kind: ast::AssocItemKind::Fn(Box::new(ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(sym::filter, span),
             generics: method_generics,
             sig: fn_sig,

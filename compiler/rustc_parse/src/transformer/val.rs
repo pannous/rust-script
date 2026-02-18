@@ -232,7 +232,7 @@ fn build_val_display_impl(def_site: Span, call_site: Span) -> Box<ast::Item> {
     });
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(sym::fmt, call_site),
         generics: ast::Generics::default(),
         sig: fn_sig,
@@ -273,7 +273,7 @@ fn build_val_display_impl(def_site: Span, call_site: Span) -> Box<ast::Item> {
         generics: ast::Generics::default(),
         constness: ast::Const::No,
         of_trait: Some(Box::new(ast::TraitImplHeader {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             safety: ast::Safety::Default,
             polarity: ast::ImplPolarity::Positive,
             trait_ref: ast::TraitRef { path: display_path, ref_id: ast::DUMMY_NODE_ID },
@@ -895,7 +895,7 @@ fn build_val_partial_eq_char(def_site: Span, call_site: Span) -> Box<ast::Item> 
     });
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(sym::eq, call_site),
         generics: ast::Generics::default(),
         sig: fn_sig,
@@ -941,7 +941,7 @@ fn build_val_partial_eq_char(def_site: Span, call_site: Span) -> Box<ast::Item> 
         generics: ast::Generics::default(),
         constness: ast::Const::No,
         of_trait: Some(Box::new(ast::TraitImplHeader {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             safety: ast::Safety::Default,
             polarity: ast::ImplPolarity::Positive,
             trait_ref: ast::TraitRef { path: partial_eq_path, ref_id: ast::DUMMY_NODE_ID },
@@ -1216,7 +1216,7 @@ fn build_from_impl(
     });
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(sym::from, call_site),
         generics: ast::Generics::default(),
         sig: fn_sig,
@@ -1260,7 +1260,7 @@ fn build_from_impl(
         generics: ast::Generics::default(),
         constness: ast::Const::No,
         of_trait: Some(Box::new(ast::TraitImplHeader {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             safety: ast::Safety::Default,
             polarity: ast::ImplPolarity::Positive,
             trait_ref: ast::TraitRef { path: from_path, ref_id: ast::DUMMY_NODE_ID },
@@ -1382,7 +1382,7 @@ fn build_val_truthy_impl(
     });
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(sym::is_truthy, call_site),
         generics: ast::Generics::default(),
         sig: fn_sig,
@@ -1412,7 +1412,7 @@ fn build_val_truthy_impl(
         generics: ast::Generics::default(),
         constness: ast::Const::No,
         of_trait: Some(Box::new(ast::TraitImplHeader {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             safety: ast::Safety::Default,
             polarity: ast::ImplPolarity::Positive,
             trait_ref: ast::TraitRef { path: trait_path.clone(), ref_id: ast::DUMMY_NODE_ID },

@@ -169,7 +169,7 @@ pub fn build_debug_string_helper(def_site: Span, call_site: Span) -> Box<ast::It
     });
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(sym::__debug_string, call_site),
         generics,
         sig: fn_sig,
@@ -262,7 +262,7 @@ pub fn build_string_helpers(def_site: Span, call_site: Span) -> ThinVec<Box<ast:
         generics: ast::Generics::default(),
         constness: ast::Const::No,
         of_trait: Some(Box::new(ast::TraitImplHeader {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             safety: ast::Safety::Default,
             polarity: ast::ImplPolarity::Positive,
             trait_ref: ast::TraitRef { path: trait_path, ref_id: ast::DUMMY_NODE_ID },
@@ -348,7 +348,7 @@ fn build_str_ext_trait_items(span: Span) -> ThinVec<Box<ast::AssocItem>> {
         };
 
         let fn_def = ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(Symbol::intern(name), span),
             generics: ast::Generics::default(),
             sig: fn_sig,
@@ -406,7 +406,7 @@ fn build_str_ext_trait_items(span: Span) -> ThinVec<Box<ast::AssocItem>> {
         };
 
         let fn_def = ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(Symbol::intern(name), span),
             generics: ast::Generics::default(),
             sig: fn_sig,
@@ -510,7 +510,7 @@ fn build_str_ext_trait_items(span: Span) -> ThinVec<Box<ast::AssocItem>> {
         };
 
         let fn_def = ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(Symbol::intern(name), span),
             generics: ast::Generics::default(),
             sig: fn_sig,
@@ -611,7 +611,7 @@ fn build_str_ext_trait_items(span: Span) -> ThinVec<Box<ast::AssocItem>> {
         };
 
         let fn_def = ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(Symbol::intern(name), span),
             generics: ast::Generics::default(),
             sig: fn_sig,
@@ -705,7 +705,7 @@ fn build_str_ext_trait_items(span: Span) -> ThinVec<Box<ast::AssocItem>> {
         };
 
         let fn_def = ast::Fn {
-            defaultness: ast::Defaultness::Final,
+            defaultness: ast::Defaultness::Implicit,
             ident: Ident::new(Symbol::intern(name), span),
             generics: ast::Generics::default(),
             sig: fn_sig,
@@ -1237,7 +1237,7 @@ fn build_impl_method_with_expr(
     });
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(Symbol::intern(name), call_site),
         generics: ast::Generics::default(),
         sig: fn_sig,
@@ -1377,7 +1377,7 @@ fn build_contains_impl(name: &str, def_site: Span, call_site: Span) -> Box<ast::
     });
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(Symbol::intern(name), call_site),
         generics: ast::Generics::default(),
         sig: fn_sig,
@@ -1541,7 +1541,7 @@ fn build_find_impl(name: &str, def_site: Span, call_site: Span) -> Box<ast::Asso
     });
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(Symbol::intern(name), call_site),
         generics: ast::Generics::default(),
         sig: fn_sig,
@@ -1709,7 +1709,7 @@ fn build_replace_impl(name: &str, def_site: Span, call_site: Span) -> Box<ast::A
     });
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(Symbol::intern(name), call_site),
         generics: ast::Generics::default(),
         sig: fn_sig,

@@ -140,7 +140,7 @@ fn build_type_aliases(span: Span) -> ThinVec<Box<ast::Item>> {
             attrs: ThinVec::new(),
             id: ast::DUMMY_NODE_ID,
             kind: ast::ItemKind::TyAlias(Box::new(ast::TyAlias {
-                defaultness: ast::Defaultness::Final,
+                defaultness: ast::Defaultness::Implicit,
                 ident: Ident::new(name, span),
                 generics: ast::Generics::default(),
                 after_where_clause: ast::WhereClause {
@@ -183,7 +183,7 @@ fn build_type_aliases(span: Span) -> ThinVec<Box<ast::Item>> {
             attrs: ThinVec::new(),
             id: ast::DUMMY_NODE_ID,
             kind: ast::ItemKind::TyAlias(Box::new(ast::TyAlias {
-                defaultness: ast::Defaultness::Final,
+                defaultness: ast::Defaultness::Implicit,
                 ident: Ident::new(sym::string, span),
                 generics: ast::Generics::default(),
                 after_where_clause: ast::WhereClause {
@@ -409,7 +409,7 @@ fn build_main(span: Span, stmts: ThinVec<ast::Stmt>) -> Box<ast::Item> {
     });
 
     let main_fn = ast::ItemKind::Fn(Box::new(ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         sig,
         ident: main_ident,
         generics: ast::Generics::default(),

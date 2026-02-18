@@ -755,7 +755,7 @@ fn build_exit_function(def_site: Span, call_site: Span) -> Box<ast::Item> {
     });
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(sym::exit, call_site),
         generics: ast::Generics::default(),
         sig: fn_sig,
@@ -1016,7 +1016,7 @@ fn build_approx_eq_function(def_site: Span, call_site: Span) -> Box<ast::Item> {
     });
 
     let fn_def = ast::Fn {
-        defaultness: ast::Defaultness::Final,
+        defaultness: ast::Defaultness::Implicit,
         ident: Ident::new(sym::approx_eq, call_site),
         generics: ast::Generics::default(),
         sig: fn_sig,
@@ -1076,7 +1076,7 @@ fn build_math_constants(def_site: Span, call_site: Span) -> ThinVec<Box<ast::Ite
             attrs: vec![allow_dead_code.clone()].into(),
             id: ast::DUMMY_NODE_ID,
             kind: ast::ItemKind::Const(Box::new(ast::ConstItem {
-                defaultness: ast::Defaultness::Final,
+                defaultness: ast::Defaultness::Implicit,
                 ident: Ident::new(name, call_site),
                 generics: ast::Generics::default(),
                 ty: const_ty,

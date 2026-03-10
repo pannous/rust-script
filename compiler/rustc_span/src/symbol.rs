@@ -162,8 +162,6 @@ symbols! {
         __optional_chain,
         __stmt,
         __v,
-        A,
-        a,
         Abi,
         abs,
         AcqRel,
@@ -186,8 +184,6 @@ symbols! {
         AsyncGenPending,
         AsyncGenReady,
         Atomic,
-        B,
-        b,
         begin,
         boolean,
         Box,
@@ -252,13 +248,13 @@ symbols! {
         export,
         ExternC,
         ExternRust,
-        F,
         filter,
         filtered,
         find,
         first,
         first_cloned,
         Float,
+        float,
         float_1e_minus_9: "1e-9",
         float_zero: "0.0",
         FmtArgumentsNew,
@@ -375,7 +371,6 @@ symbols! {
         RwLock,
         RwLockReadGuard,
         RwLockWriteGuard,
-        S,
         script,
         ScriptSliceExt,
         ScriptStrExt,
@@ -432,7 +427,6 @@ symbols! {
         Type,
         type_name_of_val,
         typeid,
-        U,
         unicode,
         Union,
         Unsize,
@@ -440,7 +434,6 @@ symbols! {
         unused_mut,
         unused_variables,
         unwrap_or_default,
-        v,
         Val,
         Vec,
         which,
@@ -2357,7 +2350,6 @@ symbols! {
         write_str,
         write_via_move,
         writeln_macro,
-        x,
         x86,
         x86_64,
         x86_amx_intrinsics,
@@ -2899,6 +2891,25 @@ pub mod sym {
     #[expect(non_upper_case_globals)]
     pub const d: Symbol = ascii_letter_digit('d').unwrap();
 
+    // Custom fork single-letter symbols
+    pub const A: Symbol = ascii_letter_digit('A').unwrap();
+    pub const B: Symbol = ascii_letter_digit('B').unwrap();
+    pub const F: Symbol = ascii_letter_digit('F').unwrap();
+    pub const S: Symbol = ascii_letter_digit('S').unwrap();
+    pub const U: Symbol = ascii_letter_digit('U').unwrap();
+    #[expect(non_upper_case_globals)]
+    pub const a: Symbol = ascii_letter_digit('a').unwrap();
+    #[expect(non_upper_case_globals)]
+    pub const b: Symbol = ascii_letter_digit('b').unwrap();
+    #[expect(non_upper_case_globals)]
+    pub const c: Symbol = ascii_letter_digit('c').unwrap();
+    #[expect(non_upper_case_globals)]
+    pub const s: Symbol = ascii_letter_digit('s').unwrap();
+    #[expect(non_upper_case_globals)]
+    pub const v: Symbol = ascii_letter_digit('v').unwrap();
+    #[expect(non_upper_case_globals)]
+    pub const x: Symbol = ascii_letter_digit('x').unwrap();
+
     /// Get the symbol for an integer.
     ///
     /// The first few non-negative integers each have a static symbol and therefore
@@ -2914,9 +2925,9 @@ pub mod sym {
         Symbol::intern(printed)
     }
 
-    pub const fn ascii_letter_digit(c: char) -> Option<Symbol> {
-        let i = c as u32;
-        Option::Some(Symbol::new(match c {
+    pub const fn ascii_letter_digit(ch: char) -> Option<Symbol> {
+        let i = ch as u32;
+        Option::Some(Symbol::new(match ch {
             '0'..='9' => super::SYMBOL_DIGITS_BASE + (i - '0' as u32),
             'A'..='Z' => super::SYMBOL_UPPERCASE_LETTERS_BASE + (i - 'A' as u32),
             'a'..='z' => super::SYMBOL_LOWERCASE_LETTERS_BASE + (i - 'a' as u32),
@@ -2924,10 +2935,10 @@ pub mod sym {
         }))
     }
 
-    pub fn character(c: char) -> Symbol {
-        ascii_letter_digit(c).unwrap_or_else(|| {
+    pub fn character(ch: char) -> Symbol {
+        ascii_letter_digit(ch).unwrap_or_else(|| {
             let mut buf: [u8; char::MAX_LEN_UTF8] = Default::default();
-            Symbol::intern(c.encode_utf8(&mut buf))
+            Symbol::intern(ch.encode_utf8(&mut buf))
         })
     }
 }

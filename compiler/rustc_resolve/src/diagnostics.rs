@@ -1,3 +1,4 @@
+// ignore-tidy-filelength
 use std::ops::ControlFlow;
 
 use itertools::Itertools as _;
@@ -14,7 +15,7 @@ use rustc_errors::{
     struct_span_code_err,
 };
 use rustc_feature::BUILTIN_ATTRIBUTES;
-use rustc_hir::attrs::{AttributeKind, CfgEntry, StrippedCfgItem};
+use rustc_hir::attrs::{CfgEntry, StrippedCfgItem};
 use rustc_hir::def::Namespace::{self, *};
 use rustc_hir::def::{self, CtorKind, CtorOf, DefKind, MacroKinds, NonMacroAttrKind, PerNS};
 use rustc_hir::def_id::{CRATE_DEF_ID, DefId};
@@ -136,7 +137,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
         }
 
         for ambiguity_error in &self.ambiguity_errors {
-            let diag = self.ambiguity_diagnostic(ambiguity_error);
+            let mut diag = self.ambiguity_diagnostic(ambiguity_error);
 
             if let Some(ambiguity_warning) = ambiguity_error.warning {
                 let node_id = match ambiguity_error.b1.0.kind {
@@ -152,6 +153,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
 
                 self.lint_buffer.buffer_lint(lint, node_id, diag.ident.span, diag);
             } else {
+                diag.is_error = true;
                 self.dcx().emit_err(diag);
             }
         }
@@ -249,20 +251,23 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
         };
 
         let label = match new_binding.is_import_user_facing() {
-            true => errors::NameDefinedMultipleTimeLabel::Reimported { span },
-            false => errors::NameDefinedMultipleTimeLabel::Redefined { span },
+            true => errors::NameDefinedMultipleTimeLabel::Reimported { span, name },
+            false => errors::NameDefinedMultipleTimeLabel::Redefined { span, name },
         };
 
         let old_binding_label =
             (!old_binding.span.is_dummy() && old_binding.span != span).then(|| {
                 let span = self.tcx.sess.source_map().guess_head_span(old_binding.span);
                 match old_binding.is_import_user_facing() {
-                    true => {
-                        errors::NameDefinedMultipleTimeOldBindingLabel::Import { span, old_kind }
-                    }
+                    true => errors::NameDefinedMultipleTimeOldBindingLabel::Import {
+                        span,
+                        old_kind,
+                        name,
+                    },
                     false => errors::NameDefinedMultipleTimeOldBindingLabel::Definition {
                         span,
                         old_kind,
+                        name,
                     },
                 }
             });
@@ -557,7 +562,9 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                     DefKind::Static { .. } => {
                         Some(errs::GenericParamsFromOuterItemStaticOrConst::Static)
                     }
-                    DefKind::Const => Some(errs::GenericParamsFromOuterItemStaticOrConst::Const),
+                    DefKind::Const { .. } => {
+                        Some(errs::GenericParamsFromOuterItemStaticOrConst::Const)
+                    }
                     _ => None,
                 };
                 let is_self =
@@ -573,6 +580,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                         errs::GenericParamsFromOuterItemInnerItem {
                             span: *span,
                             descr: kind.descr().to_string(),
+                            is_self,
                         }
                     }),
                 };
@@ -720,8 +728,8 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                                 Res::Def(
                                     DefKind::Ctor(CtorOf::Variant, CtorKind::Const)
                                         | DefKind::Ctor(CtorOf::Struct, CtorKind::Const)
-                                        | DefKind::Const
-                                        | DefKind::AssocConst,
+                                        | DefKind::Const { .. }
+                                        | DefKind::AssocConst { .. },
                                     _,
                                 )
                             )
@@ -729,11 +737,11 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                     );
 
                     if import_suggestions.is_empty() && !suggested_typo {
-                        let kinds = [
-                            DefKind::Ctor(CtorOf::Variant, CtorKind::Const),
-                            DefKind::Ctor(CtorOf::Struct, CtorKind::Const),
-                            DefKind::Const,
-                            DefKind::AssocConst,
+                        let kind_matches: [fn(DefKind) -> bool; 4] = [
+                            |kind| matches!(kind, DefKind::Ctor(CtorOf::Variant, CtorKind::Const)),
+                            |kind| matches!(kind, DefKind::Ctor(CtorOf::Struct, CtorKind::Const)),
+                            |kind| matches!(kind, DefKind::Const { .. }),
+                            |kind| matches!(kind, DefKind::AssocConst { .. }),
                         ];
                         let mut local_names = vec![];
                         self.add_module_candidates(
@@ -752,13 +760,13 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
 
                         let mut local_suggestions = vec![];
                         let mut suggestions = vec![];
-                        for kind in kinds {
+                        for matches_kind in kind_matches {
                             if let Some(suggestion) = self.early_lookup_typo_candidate(
                                 ScopeSet::All(Namespace::ValueNS),
                                 &parent_scope,
                                 name,
                                 &|res: Res| match res {
-                                    Res::Def(k, _) => k == kind,
+                                    Res::Def(k, _) => matches_kind(k),
                                     _ => false,
                                 },
                             ) && let Res::Def(kind, mut def_id) = suggestion.res
@@ -893,12 +901,6 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                     mpart_suggestion,
                 })
             }
-            ResolutionError::SelfImportCanOnlyAppearOnceInTheList => {
-                self.dcx().create_err(errs::SelfImportCanOnlyAppearOnceInTheList { span })
-            }
-            ResolutionError::SelfImportOnlyInImportListWithNonEmptyPrefix => {
-                self.dcx().create_err(errs::SelfImportOnlyInImportListWithNonEmptyPrefix { span })
-            }
             ResolutionError::FailedToResolve { segment, label, suggestion, module, message } => {
                 let mut err = struct_span_code_err!(self.dcx(), span, E0433, "{message}");
                 err.span_label(span, label);
@@ -908,7 +910,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                         err.help(msg);
                         return err;
                     }
-                    err.multipart_suggestion_verbose(msg, suggestions, applicability);
+                    err.multipart_suggestion(msg, suggestions, applicability);
                 }
 
                 let module = match module {
@@ -1007,12 +1009,14 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
             ResolutionError::ParamInTyOfConstParam { name } => {
                 self.dcx().create_err(errs::ParamInTyOfConstParam { span, name })
             }
-            ResolutionError::ParamInNonTrivialAnonConst { name, param_kind: is_type } => {
+            ResolutionError::ParamInNonTrivialAnonConst { is_ogca, name, param_kind: is_type } => {
                 self.dcx().create_err(errs::ParamInNonTrivialAnonConst {
                     span,
                     name,
                     param_kind: is_type,
                     help: self.tcx.sess.is_nightly_build(),
+                    is_ogca,
+                    help_ogca: is_ogca,
                 })
             }
             ResolutionError::ParamInEnumDiscriminant { name, param_kind: is_type } => self
@@ -1430,8 +1434,9 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                         let note = if let Some(did) = did {
                             let requires_note = !did.is_local()
                                 && find_attr!(
-                                    this.tcx.get_all_attrs(did),
-                                    AttributeKind::RustcDiagnosticItem(
+                                    this.tcx,
+                                    did,
+                                    RustcDiagnosticItem(
                                         sym::TryInto | sym::TryFrom | sym::FromIterator
                                     )
                                 );
@@ -2091,6 +2096,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
             b1_help_msgs,
             b2_note,
             b2_help_msgs,
+            is_error: false,
         }
     }
 
@@ -2170,7 +2176,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
         // Otherwise, point out if the struct has any private fields.
         if let Some(def_id) = res.opt_def_id()
             && !def_id.is_local()
-            && let Some(attr_span) = find_attr!(self.tcx.get_all_attrs(def_id), AttributeKind::NonExhaustive(span) => *span)
+            && let Some(attr_span) = find_attr!(self.tcx, def_id, NonExhaustive(span) => *span)
         {
             non_exhaustive = Some(attr_span);
         } else if let Some(span) = ctor_fields_span {
@@ -2212,7 +2218,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                     })
                 })
                 .collect();
-            if let Some(def_id) = path.get(0)
+            if let Some(&def_id) = path.get(0)
                 && let Some(path) = path_names
             {
                 if let Some(def_id) = def_id.as_local() {
@@ -2379,7 +2385,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
                             (last_span.shrink_to_hi(), ", ..".to_string()),
                         ]
                     };
-                    err.multipart_suggestion_verbose(
+                    err.multipart_suggestion(
                         format!(
                             "the type `{ident}` of field `{}` is private, but you can construct \
                              the default value defined for it in `{}` using `..` in the struct \
@@ -2974,7 +2980,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
             corrections.push((import.span, format!("{module_name}::{import_snippet}")));
         } else {
             // Find the binding span (and any trailing commas and spaces).
-            //   ie. `use a::b::{c, d, e};`
+            //   i.e. `use a::b::{c, d, e};`
             //                      ^^^
             let (found_closing_brace, binding_span) = find_span_of_binding_until_next_binding(
                 self.tcx.sess,
@@ -2986,11 +2992,11 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
             let mut removal_span = binding_span;
 
             // If the binding span ended with a closing brace, as in the below example:
-            //   ie. `use a::b::{c, d};`
+            //   i.e. `use a::b::{c, d};`
             //                      ^
             // Then expand the span of characters to remove to include the previous
             // binding's trailing comma.
-            //   ie. `use a::b::{c, d};`
+            //   i.e. `use a::b::{c, d};`
             //                    ^^^
             if found_closing_brace
                 && let Some(previous_span) =
@@ -3006,7 +3012,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
 
             // Find the span after the crate name and if it has nested imports immediately
             // after the crate name already.
-            //   ie. `use a::b::{c, d};`
+            //   i.e. `use a::b::{c, d};`
             //               ^^^^^^^^^
             //   or  `use a::{b, c, d}};`
             //               ^^^^^^^^^^^
@@ -3170,16 +3176,16 @@ fn find_span_of_binding_until_next_binding(
     let source_map = sess.source_map();
 
     // Find the span of everything after the binding.
-    //   ie. `a, e};` or `a};`
+    //   i.e. `a, e};` or `a};`
     let binding_until_end = binding_span.with_hi(use_span.hi());
 
     // Find everything after the binding but not including the binding.
-    //   ie. `, e};` or `};`
+    //   i.e. `, e};` or `};`
     let after_binding_until_end = binding_until_end.with_lo(binding_span.hi());
 
     // Keep characters in the span until we encounter something that isn't a comma or
     // whitespace.
-    //   ie. `, ` or ``.
+    //   i.e. `, ` or ``.
     //
     // Also note whether a closing brace character was encountered. If there
     // was, then later go backwards to remove any trailing commas that are left.
@@ -3193,7 +3199,7 @@ fn find_span_of_binding_until_next_binding(
         });
 
     // Combine the two spans.
-    //   ie. `a, ` or `a`.
+    //   i.e. `a, ` or `a`.
     //
     // Removing these would leave `issue_52891::{d, e};` or `issue_52891::{d, e, };`
     let span = binding_span.with_hi(after_binding_until_next_binding.hi());
@@ -3217,7 +3223,7 @@ fn extend_span_to_previous_binding(sess: &Session, binding_span: Span) -> Option
     let source_map = sess.source_map();
 
     // `prev_source` will contain all of the source that came before the span.
-    // Then split based on a command and take the first (ie. closest to our span)
+    // Then split based on a command and take the first (i.e. closest to our span)
     // snippet. In the example, this is a space.
     let prev_source = source_map.span_to_prev_source(binding_span).ok()?;
 

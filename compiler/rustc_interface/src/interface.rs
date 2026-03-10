@@ -437,16 +437,6 @@ pub fn run_compiler<R: Send>(mut config: Config, f: impl FnOnce(&Compiler) -> R 
 
             let temps_dir = config.opts.unstable_opts.temps_dir.as_deref().map(PathBuf::from);
 
-            let bundle = match rustc_errors::fluent_bundle(
-                &config.opts.sysroot.all_paths().collect::<Vec<_>>(),
-                config.opts.unstable_opts.translate_lang.clone(),
-                config.opts.unstable_opts.translate_additional_ftl.as_deref(),
-                config.opts.unstable_opts.translate_directionality_markers,
-            ) {
-                Ok(bundle) => bundle,
-                Err(e) => early_dcx.early_fatal(format!("failed to load fluent bundle: {e}")),
-            };
-
             let mut sess = rustc_session::build_session(
                 config.opts,
                 CompilerIO {
@@ -455,7 +445,6 @@ pub fn run_compiler<R: Send>(mut config: Config, f: impl FnOnce(&Compiler) -> R 
                     output_file: config.output_file,
                     temps_dir,
                 },
-                bundle,
                 config.lint_caps,
                 target,
                 util::rustc_version_str().unwrap_or("unknown"),

@@ -3,7 +3,6 @@ use rustc_abi::{FIRST_VARIANT, FieldIdx, Size, VariantIdx};
 use rustc_ast::UnsafeBinderCastKind;
 use rustc_data_structures::stack::ensure_sufficient_stack;
 use rustc_hir as hir;
-use rustc_hir::attrs::AttributeKind;
 use rustc_hir::def::{CtorKind, CtorOf, DefKind, Res};
 use rustc_hir::{LangItem, find_attr};
 use rustc_index::Idx;
@@ -711,7 +710,8 @@ impl<'tcx> ThirBuildCx<'tcx> {
                                             .collect(),
                                     )
                                 }
-                                hir::StructTailExpr::None => AdtExprBase::None,
+                                hir::StructTailExpr::None
+                                | hir::StructTailExpr::NoneWithError(_) => AdtExprBase::None,
                             },
                         }))
                     }
@@ -723,6 +723,7 @@ impl<'tcx> ThirBuildCx<'tcx> {
                                     base,
                                     hir::StructTailExpr::None
                                         | hir::StructTailExpr::DefaultFields(_)
+                                        | hir::StructTailExpr::NoneWithError(_)
                                 ));
 
                                 let index = adt.variant_index_with_id(variant_id);
@@ -748,7 +749,10 @@ impl<'tcx> ThirBuildCx<'tcx> {
                                         hir::StructTailExpr::Base(base) => {
                                             span_bug!(base.span, "unexpected res: {:?}", res);
                                         }
-                                        hir::StructTailExpr::None => AdtExprBase::None,
+                                        hir::StructTailExpr::None
+                                        | hir::StructTailExpr::NoneWithError(_) => {
+                                            AdtExprBase::None
+                                        }
                                     },
                                 }))
                             }
@@ -880,6 +884,10 @@ impl<'tcx> ThirBuildCx<'tcx> {
                     lit: ScalarInt::try_from_uint(val, Size::from_bits(32)).unwrap(),
                     user_ty: None,
                 };
+                let mk_usize_kind = |val: u64| ExprKind::NonHirLiteral {
+                    lit: ScalarInt::try_from_target_usize(val, tcx).unwrap(),
+                    user_ty: None,
+                };
                 let mk_call =
                     |thir: &mut Thir<'tcx>, ty: Ty<'tcx>, variant: VariantIdx, field: FieldIdx| {
                         let fun_ty =
@@ -916,7 +924,7 @@ impl<'tcx> ThirBuildCx<'tcx> {
                     });
                 }
 
-                expr.unwrap_or(mk_u32_kind(0))
+                expr.unwrap_or_else(|| mk_usize_kind(0))
             }
 
             hir::ExprKind::ConstBlock(ref anon_const) => {
@@ -943,7 +951,7 @@ impl<'tcx> ThirBuildCx<'tcx> {
             hir::ExprKind::Ret(v) => ExprKind::Return { value: v.map(|v| self.mirror_expr(v)) },
             hir::ExprKind::Become(call) => ExprKind::Become { value: self.mirror_expr(call) },
             hir::ExprKind::Break(dest, ref value) => {
-                if find_attr!(self.tcx.hir_attrs(expr.hir_id), AttributeKind::ConstContinue(_)) {
+                if find_attr!(self.tcx.hir_attrs(expr.hir_id), ConstContinue(_)) {
                     match dest.target_id {
                         Ok(target_id) => {
                             let (Some(value), Some(_)) = (value, dest.label) else {
@@ -1008,7 +1016,7 @@ impl<'tcx> ThirBuildCx<'tcx> {
                 match_source,
             },
             hir::ExprKind::Loop(body, ..) => {
-                if find_attr!(self.tcx.hir_attrs(expr.hir_id), AttributeKind::LoopMatch(_)) {
+                if find_attr!(self.tcx.hir_attrs(expr.hir_id), LoopMatch(_)) {
                     let dcx = self.tcx.dcx();
 
                     // Accept either `state = expr` or `state = expr;`.
@@ -1196,8 +1204,8 @@ impl<'tcx> ThirBuildCx<'tcx> {
             Res::Def(DefKind::Fn, _)
             | Res::Def(DefKind::AssocFn, _)
             | Res::Def(DefKind::Ctor(_, CtorKind::Fn), _)
-            | Res::Def(DefKind::Const, _)
-            | Res::Def(DefKind::AssocConst, _) => {
+            | Res::Def(DefKind::Const { .. }, _)
+            | Res::Def(DefKind::AssocConst { .. }, _) => {
                 self.typeck_results.user_provided_types().get(hir_id).copied().map(Box::new)
             }
 
@@ -1286,7 +1294,8 @@ impl<'tcx> ThirBuildCx<'tcx> {
                 ExprKind::ConstParam { param, def_id }
             }
 
-            Res::Def(DefKind::Const, def_id) | Res::Def(DefKind::AssocConst, def_id) => {
+            Res::Def(DefKind::Const { .. }, def_id)
+            | Res::Def(DefKind::AssocConst { .. }, def_id) => {
                 let user_ty = self.user_args_applied_to_res(expr.hir_id, res);
                 ExprKind::NamedConst { def_id, args, user_ty }
             }

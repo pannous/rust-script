@@ -87,6 +87,12 @@ impl Step for Docs {
         // from a shared directory.
         builder.run_default_doc_steps();
 
+        // In case no default doc steps are run for host, it is possible that `<host>/doc` directory
+        // is never created.
+        if !builder.config.dry_run() {
+            t!(fs::create_dir_all(builder.doc_out(host)));
+        }
+
         let dest = "share/doc/rust/html";
 
         let mut tarball = Tarball::new(builder, "rust-docs", &host.triple);
@@ -3084,7 +3090,7 @@ impl Step for Gcc {
             return None;
         }
 
-        if builder.config.is_running_on_ci {
+        if builder.config.is_running_on_ci() {
             assert_eq!(
                 builder.config.gcc_ci_mode,
                 GccCiMode::BuildLocally,

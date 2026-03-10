@@ -1,13 +1,11 @@
 //! The `Visitor` responsible for actually checking a `mir::Body` for invalid operations.
 
 use std::borrow::Cow;
-use std::mem;
 use std::num::NonZero;
 use std::ops::Deref;
+use std::{assert_matches, mem};
 
-use rustc_data_structures::assert_matches;
 use rustc_errors::{Diag, ErrorGuaranteed};
-use rustc_hir::attrs::AttributeKind;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::DefId;
 use rustc_hir::{self as hir, LangItem, find_attr};
@@ -216,7 +214,7 @@ impl<'mir, 'tcx> Checker<'mir, 'tcx> {
             return;
         }
 
-        if !find_attr!(tcx.get_all_attrs(def_id), AttributeKind::RustcDoNotConstCheck) {
+        if !find_attr!(tcx, def_id, RustcDoNotConstCheck) {
             self.visit_body(body);
         }
 
@@ -335,7 +333,7 @@ impl<'mir, 'tcx> Checker<'mir, 'tcx> {
             self.tcx.dcx().span_bug(span, "tls access is checked in `Rvalue::ThreadLocalRef`");
         }
         if let Some(def_id) = def_id.as_local()
-            && let Err(guar) = self.tcx.ensure_ok().check_well_formed(hir::OwnerId { def_id })
+            && let Err(guar) = self.tcx.ensure_result().check_well_formed(hir::OwnerId { def_id })
         {
             self.error_emitted = Some(guar);
         }
@@ -578,7 +576,7 @@ impl<'tcx> Visitor<'tcx> for Checker<'_, 'tcx> {
 
             Rvalue::Aggregate(kind, ..) => {
                 if let AggregateKind::Coroutine(def_id, ..) = kind.as_ref()
-                    && let Some(coroutine_kind) = self.tcx.coroutine_kind(def_id)
+                    && let Some(coroutine_kind) = self.tcx.coroutine_kind(*def_id)
                 {
                     self.check_op(ops::Coroutine(coroutine_kind));
                 }

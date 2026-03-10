@@ -4,7 +4,7 @@ use rustc_abi::ExternAbi;
 use rustc_ast::ParamKindOrd;
 use rustc_errors::codes::*;
 use rustc_errors::{Applicability, Diag, EmissionGuarantee, Subdiagnostic};
-use rustc_macros::{Diagnostic, LintDiagnostic, Subdiagnostic};
+use rustc_macros::{Diagnostic, Subdiagnostic};
 use rustc_span::{Ident, Span, Symbol};
 
 #[derive(Diagnostic)]
@@ -671,7 +671,7 @@ pub(crate) struct MissingUnsafeOnExtern {
     pub span: Span,
 }
 
-#[derive(LintDiagnostic)]
+#[derive(Diagnostic)]
 #[diag("extern blocks should be unsafe")]
 pub(crate) struct MissingUnsafeOnExternLint {
     #[suggestion(
@@ -1027,7 +1027,7 @@ pub(crate) struct MissingAbi {
     pub span: Span,
 }
 
-#[derive(LintDiagnostic)]
+#[derive(Diagnostic)]
 #[diag("`extern` declarations without an explicit ABI are deprecated")]
 pub(crate) struct MissingAbiSugg {
     #[suggestion(
@@ -1130,6 +1130,13 @@ pub(crate) struct AbiX86Interrupt {
 #[derive(Diagnostic)]
 #[diag("scalable vectors must be tuple structs")]
 pub(crate) struct ScalableVectorNotTupleStruct {
+    #[primary_span]
+    pub span: Span,
+}
+
+#[derive(Diagnostic)]
+#[diag("scalable vectors are not supported on this architecture")]
+pub(crate) struct ScalableVectorBadArch {
     #[primary_span]
     pub span: Span,
 }

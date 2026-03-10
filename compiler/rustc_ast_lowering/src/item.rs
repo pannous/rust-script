@@ -27,7 +27,7 @@ use super::{
 
 pub(super) struct ItemLowerer<'a, 'hir> {
     pub(super) tcx: TyCtxt<'hir>,
-    pub(super) resolver: &'a mut ResolverAstLowering,
+    pub(super) resolver: &'a mut ResolverAstLowering<'hir>,
     pub(super) ast_index: &'a IndexSlice<LocalDefId, AstOwner<'a>>,
     pub(super) owners: &'a mut IndexVec<LocalDefId, hir::MaybeOwner<'hir>>,
 }
@@ -57,7 +57,7 @@ impl<'a, 'hir> ItemLowerer<'a, 'hir> {
         owner: NodeId,
         f: impl FnOnce(&mut LoweringContext<'_, 'hir>) -> hir::OwnerNode<'hir>,
     ) {
-        let mut lctx = LoweringContext::new(self.tcx, self.resolver);
+        let mut lctx = LoweringContext::new(self.tcx, self.ast_index, self.resolver);
         lctx.with_hir_id_owner(owner, |lctx| f(lctx));
 
         for (def_id, info) in lctx.children {
@@ -243,7 +243,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             vis_span,
             span: self.lower_span(i.span),
             has_delayed_lints: !self.delayed_lints.is_empty(),
-            eii: find_attr!(attrs, AttributeKind::EiiImpls(..) | AttributeKind::EiiDeclaration(..)),
+            eii: find_attr!(attrs, EiiImpls(..) | EiiDeclaration(..)),
         };
         self.arena.alloc(item)
     }
@@ -512,6 +512,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 constness,
                 is_auto,
                 safety,
+                // FIXME(impl_restrictions): lower to HIR
+                impl_restriction: _,
                 ident,
                 generics,
                 bounds,
@@ -707,10 +709,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                             vis_span,
                             span: this.lower_span(use_tree.span),
                             has_delayed_lints: !this.delayed_lints.is_empty(),
-                            eii: find_attr!(
-                                attrs,
-                                AttributeKind::EiiImpls(..) | AttributeKind::EiiDeclaration(..)
-                            ),
+                            eii: find_attr!(attrs, EiiImpls(..) | EiiDeclaration(..)),
                         };
                         hir::OwnerNode::Item(this.arena.alloc(item))
                     });
@@ -1088,9 +1087,18 @@ impl<'hir> LoweringContext<'_, 'hir> {
             }
         };
 
-        let (defaultness, _) = self.lower_defaultness(i.kind.defaultness(), has_value, || {
-            hir::Defaultness::Default { has_value }
-        });
+        let defaultness = match i.kind.defaultness() {
+            // We do not yet support `final` on trait associated items other than functions.
+            // Even though we reject `final` on non-functions during AST validation, we still
+            // need to stop propagating it here because later compiler passes do not expect
+            // and cannot handle such items.
+            Defaultness::Final(..) if !matches!(i.kind, AssocItemKind::Fn(..)) => {
+                Defaultness::Implicit
+            }
+            defaultness => defaultness,
+        };
+        let (defaultness, _) = self
+            .lower_defaultness(defaultness, has_value, || hir::Defaultness::Default { has_value });
 
         let item = hir::TraitItem {
             owner_id: trait_item_def_id,
@@ -1415,9 +1423,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             // create a fake body so that the entire rest of the compiler doesn't have to deal with
             // this as a special case.
             return self.lower_fn_body(decl, contract, |this| {
-                if find_attr!(attrs, AttributeKind::RustcIntrinsic)
-                    || this.tcx.is_sdylib_interface_build()
-                {
+                if find_attr!(attrs, RustcIntrinsic) || this.tcx.is_sdylib_interface_build() {
                     let span = this.lower_span(span);
                     let empty_block = hir::Block {
                         hir_id: this.next_id(),
@@ -1695,7 +1701,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let safety = self.lower_safety(h.safety, default_safety);
 
         // Treat safe `#[target_feature]` functions as unsafe, but also remember that we did so.
-        let safety = if find_attr!(attrs, AttributeKind::TargetFeature { was_forced: false, .. })
+        let safety = if find_attr!(attrs, TargetFeature { was_forced: false, .. })
             && safety.is_safe()
             && !self.tcx.sess.target.is_like_wasm
         {

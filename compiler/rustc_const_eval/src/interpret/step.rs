@@ -86,7 +86,7 @@ impl<'tcx, M: Machine<'tcx>> InterpCx<'tcx, M> {
             span = ?stmt.source_info.span,
             tracing_separate_thread = Empty,
         )
-        .or_if_tracing_disabled(|| info!(stmt = ?stmt.kind));
+        .or_if_tracing_disabled(|| info!("{:?}", stmt.kind));
 
         use rustc_middle::mir::StatementKind::*;
 
@@ -470,7 +470,7 @@ impl<'tcx, M: Machine<'tcx>> InterpCx<'tcx, M> {
                 let instance = self.resolve(def_id, args)?;
                 (
                     FnVal::Instance(instance),
-                    self.fn_abi_of_instance(instance, extra_args)?,
+                    self.fn_abi_of_instance_no_deduced_attrs(instance, extra_args)?,
                     instance.def.requires_caller_location(*self.tcx),
                 )
             }
@@ -490,7 +490,7 @@ impl<'tcx, M: Machine<'tcx>> InterpCx<'tcx, M> {
             span = ?terminator.source_info.span,
             tracing_separate_thread = Empty,
         )
-        .or_if_tracing_disabled(|| info!(terminator = ?terminator.kind));
+        .or_if_tracing_disabled(|| info!("{:?}", terminator.kind));
 
         use rustc_middle::mir::TerminatorKind::*;
         match terminator.kind {
